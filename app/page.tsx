@@ -130,6 +130,8 @@ export default function HomePage() {
           videoRef.current!.srcObject = event.streams[0];
         };
         monitorBitrate('inbound-rtp');
+      } else {
+        monitorBitrate('outbound-rtp');
       }
     },
     [isSender]
