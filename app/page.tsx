@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function HomePage() {
   const [isSender, setIsSender] = useState(false);
@@ -19,6 +19,122 @@ export default function HomePage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
   const iceGatheringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setupWebRTC = useCallback(
+    async (createOffer: boolean = false) => {
+      console.log('Creating RTCPeerConnection...');
+      const peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+
+      peerConnectionRef.current = peerConnection;
+
+      peerConnection.onicecandidate = (event) => {
+        if (!event.candidate) {
+          console.log('ICE gathering complete');
+          clearTimeout(iceGatheringTimeoutRef.current!);
+          finalizeOfferOrAnswer();
+        } else {
+          console.log('ICE candidate:', event.candidate);
+        }
+      };
+
+      iceGatheringTimeoutRef.current = setTimeout(() => {
+        console.log('ICE gathering timeout');
+        finalizeOfferOrAnswer();
+      }, 10000);
+
+      console.log('isSender during WebRTC setup:', isSender);
+
+      if (isSender) {
+        console.log('Setting up video stream for WebRTC...');
+        const videoElement = videoRef.current!;
+        const stream = (videoElement as any).captureStream();
+        stream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, stream);
+        });
+
+        if (createOffer) {
+          console.log('Creating WebRTC offer...');
+          const offer = await peerConnection.createOffer();
+
+          let modifiedSDP = offer.sdp;
+
+          console.log('Modifying SDP for H.264 prioritization...');
+          modifiedSDP = modifiedSDP.replace(
+            /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
+            'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
+          );
+          modifiedSDP = modifiedSDP.replace(
+            /a=mid:1\r\n/g,
+            'a=mid:1\r\nb=AS:5000\r\n'
+          );
+
+          modifiedSDP = modifiedSDP.replace(
+            /a=rtpmap:102 H264\/90000\r\n/g,
+            'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
+          );
+
+          const modifiedOffer = new RTCSessionDescription({
+            type: offer.type,
+            sdp: modifiedSDP,
+          });
+
+          console.log('Setting local description with modified SDP...');
+          await peerConnection.setLocalDescription(modifiedOffer);
+
+          offerElementRef.current!.value = JSON.stringify(
+            peerConnection.localDescription
+          );
+          console.log('WebRTC offer created and set:', offerElementRef.current!.value);
+        }
+      } else {
+        console.log('Receiver setup complete, waiting for offer.');
+      }
+
+      offerFromPeerElementRef.current!.addEventListener('input', async () => {
+        console.log('Offer from peer received');
+        const offer = JSON.parse(offerFromPeerElementRef.current!.value);
+        await peerConnection.setRemoteDescription(offer);
+        console.log('Remote description set');
+
+        if (!isSender) {
+          console.log('Creating WebRTC answer...');
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          console.log('Answer created and set:', answer);
+
+          answerElementRef.current!.value = JSON.stringify(
+            peerConnection.localDescription
+          );
+        }
+      });
+
+      answerFromPeerElementRef.current!.addEventListener('input', async () => {
+        console.log('Answer from peer received');
+        const answer = JSON.parse(answerFromPeerElementRef.current!.value);
+        await peerConnection.setRemoteDescription(answer);
+        console.log('Remote description set');
+      });
+
+      if (!isSender) {
+        console.log('Setting up receiver to handle incoming stream...');
+        peerConnection.ontrack = (event) => {
+          console.log('Incoming stream received');
+          videoRef.current!.srcObject = event.streams[0];
+        };
+        monitorBitrate('inbound-rtp');
+      }
+    },
+    [isSender]
+  );
+
+  useEffect(() => {
+    if (shouldSetupWebRTC) {
+      setupWebRTC(true);
+      setShouldSetupWebRTC(false); // Reset the trigger
+    }
+  }, [shouldSetupWebRTC, setupWebRTC]);
 
   const startSender = async () => {
     console.log('Start Sender clicked');
@@ -66,119 +182,6 @@ export default function HomePage() {
     await videoElement.play();
     console.log('Video is playing');
   };
-
-  const setupWebRTC = async (createOffer = false) => {
-    console.log('Creating RTCPeerConnection...');
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-
-    peerConnectionRef.current = peerConnection;
-
-    peerConnection.onicecandidate = (event) => {
-      if (!event.candidate) {
-        console.log('ICE gathering complete');
-        clearTimeout(iceGatheringTimeoutRef.current!);
-        finalizeOfferOrAnswer();
-      } else {
-        console.log('ICE candidate:', event.candidate);
-      }
-    };
-
-    iceGatheringTimeoutRef.current = setTimeout(() => {
-      console.log('ICE gathering timeout');
-      finalizeOfferOrAnswer();
-    }, 10000);
-
-    console.log('isSender during WebRTC setup:', isSender);
-
-    if (isSender) {
-      console.log('Setting up video stream for WebRTC...');
-      const videoElement = videoRef.current!;
-      const stream = videoElement.captureStream();
-      stream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, stream);
-      });
-
-      if (createOffer) {
-        console.log('Creating WebRTC offer...');
-        const offer = await peerConnection.createOffer();
-
-        let modifiedSDP = offer.sdp;
-
-        console.log('Modifying SDP for H.264 prioritization...');
-        modifiedSDP = modifiedSDP.replace(
-          /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
-          'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
-        );
-        modifiedSDP = modifiedSDP.replace(
-          /a=mid:1\r\n/g,
-          'a=mid:1\r\nb=AS:5000\r\n'
-        );
-
-        modifiedSDP = modifiedSDP.replace(
-          /a=rtpmap:102 H264\/90000\r\n/g,
-          'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
-        );
-
-        const modifiedOffer = new RTCSessionDescription({
-          type: offer.type,
-          sdp: modifiedSDP,
-        });
-
-        console.log('Setting local description with modified SDP...');
-        await peerConnection.setLocalDescription(modifiedOffer);
-
-        offerElementRef.current!.value = JSON.stringify(
-          peerConnection.localDescription
-        );
-        console.log('WebRTC offer created and set:', offerElementRef.current!.value);
-      }
-    } else {
-      console.log('Receiver setup complete, waiting for offer.');
-    }
-
-    offerFromPeerElementRef.current!.addEventListener('input', async () => {
-      console.log('Offer from peer received');
-      const offer = JSON.parse(offerFromPeerElementRef.current!.value);
-      await peerConnection.setRemoteDescription(offer);
-      console.log('Remote description set');
-
-      if (!isSender) {
-        console.log('Creating WebRTC answer...');
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        console.log('Answer created and set:', answer);
-
-        answerElementRef.current!.value = JSON.stringify(
-          peerConnection.localDescription
-        );
-      }
-    });
-
-    answerFromPeerElementRef.current!.addEventListener('input', async () => {
-      console.log('Answer from peer received');
-      const answer = JSON.parse(answerFromPeerElementRef.current!.value);
-      await peerConnection.setRemoteDescription(answer);
-      console.log('Remote description set');
-    });
-
-    if (!isSender) {
-      console.log('Setting up receiver to handle incoming stream...');
-      peerConnection.ontrack = (event) => {
-        console.log('Incoming stream received');
-        videoRef.current!.srcObject = event.streams[0];
-      };
-      monitorBitrate('inbound-rtp');
-    }
-  };
-
-  useEffect(() => {
-    if (shouldSetupWebRTC) {
-      setupWebRTC(true);
-      setShouldSetupWebRTC(false); // Reset the trigger
-    }
-  }, [shouldSetupWebRTC, setupWebRTC]);
 
   const finalizeOfferOrAnswer = () => {
     if (isSender) {
