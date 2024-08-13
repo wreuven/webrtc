@@ -1,113 +1,290 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useRef, useEffect } from 'react';
+
+export default function HomePage() {
+  const [isSender, setIsSender] = useState(false);
+  const [shouldSetupWebRTC, setShouldSetupWebRTC] = useState(false);
+  const roleTitleRef = useRef(null);
+  const videoRef = useRef(null);
+  const offerContainerRef = useRef(null);
+  const offerElementRef = useRef(null);
+  const offerFromPeerContainerRef = useRef(null);
+  const offerFromPeerElementRef = useRef(null);
+  const answerContainerRef = useRef(null);
+  const answerElementRef = useRef(null);
+  const answerFromPeerContainerRef = useRef(null);
+  const answerFromPeerElementRef = useRef(null);
+  const bitrateRef = useRef(null);
+  const peerConnectionRef = useRef(null);
+  const lastBytesRef = useRef(0);
+  const iceGatheringTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldSetupWebRTC) {
+      setupWebRTC(true);
+      setShouldSetupWebRTC(false); // Reset the trigger
+    }
+  }, [shouldSetupWebRTC]);
+
+  const startSender = async () => {
+    console.log('Start Sender clicked');
+    setIsSender(true);
+    roleTitleRef.current.textContent = 'Running as Sender';
+    offerContainerRef.current.classList.remove('hidden');
+    answerFromPeerContainerRef.current.classList.remove('hidden');
+
+    console.log('Setting up video...');
+    await setupVideo();
+    console.log('Video setup complete. Triggering WebRTC setup...');
+    setShouldSetupWebRTC(true); // Trigger WebRTC setup after state update
+  };
+
+  const startReceiver = async () => {
+    console.log('Start Receiver clicked');
+    setIsSender(false);
+    roleTitleRef.current.textContent = 'Running as Receiver';
+    offerFromPeerContainerRef.current.classList.remove('hidden');
+    answerContainerRef.current.classList.remove('hidden');
+
+    console.log('Setting up WebRTC as Receiver...');
+    setupWebRTC(false);
+    console.log('WebRTC setup complete.');
+  };
+
+  const setupVideo = async () => {
+    const videoElement = videoRef.current;
+    const videoSource =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+        ? `${window.location.origin}/sintel_trailer-1080p.mp4`
+        : 'https://download.blender.org/durian/trailer/sintel_trailer-1080p.mp4';
+
+    videoElement.src = videoSource;
+
+    console.log('Waiting for video to load...');
+    await new Promise((resolve) => {
+      videoElement.onloadeddata = () => {
+        console.log('Video data loaded');
+        resolve();
+      };
+    });
+
+    await videoElement.play();
+    console.log('Video is playing');
+  };
+
+  const setupWebRTC = async (createOffer = false) => {
+    console.log('Creating RTCPeerConnection...');
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+
+    peerConnectionRef.current = peerConnection;
+
+    peerConnection.onicecandidate = (event) => {
+      if (!event.candidate) {
+        console.log('ICE gathering complete');
+        clearTimeout(iceGatheringTimeoutRef.current);
+        finalizeOfferOrAnswer();
+      } else {
+        console.log('ICE candidate:', event.candidate);
+      }
+    };
+
+    iceGatheringTimeoutRef.current = setTimeout(() => {
+      console.log('ICE gathering timeout');
+      finalizeOfferOrAnswer();
+    }, 10000);
+
+    console.log('isSender during WebRTC setup:', isSender);
+
+    if (isSender) {
+      console.log('Setting up video stream for WebRTC...');
+      const videoElement = videoRef.current;
+      const stream = videoElement.captureStream();
+      stream.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, stream);
+      });
+
+      if (createOffer) {
+        console.log('Creating WebRTC offer...');
+        const offer = await peerConnection.createOffer();
+
+        let modifiedSDP = offer.sdp;
+
+        console.log('Modifying SDP for H.264 prioritization...');
+        modifiedSDP = modifiedSDP.replace(
+          /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
+          'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
+        );
+        modifiedSDP = modifiedSDP.replace(
+          /a=mid:1\r\n/g,
+          'a=mid:1\r\nb=AS:5000\r\n'
+        );
+
+        modifiedSDP = modifiedSDP.replace(
+          /a=rtpmap:102 H264\/90000\r\n/g,
+          'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
+        );
+
+        const modifiedOffer = new RTCSessionDescription({
+          type: offer.type,
+          sdp: modifiedSDP,
+        });
+
+        console.log('Setting local description with modified SDP...');
+        await peerConnection.setLocalDescription(modifiedOffer);
+
+        offerElementRef.current.value = JSON.stringify(
+          peerConnection.localDescription
+        );
+        console.log('WebRTC offer created and set:', offerElementRef.current.value);
+      }
+    } else {
+      console.log('Receiver setup complete, waiting for offer.');
+    }
+
+    offerFromPeerElementRef.current.addEventListener('input', async () => {
+      console.log('Offer from peer received');
+      const offer = JSON.parse(offerFromPeerElementRef.current.value);
+      await peerConnection.setRemoteDescription(offer);
+      console.log('Remote description set');
+
+      if (!isSender) {
+        console.log('Creating WebRTC answer...');
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        console.log('Answer created and set:', answer);
+
+        answerElementRef.current.value = JSON.stringify(
+          peerConnection.localDescription
+        );
+      }
+    });
+
+    answerFromPeerElementRef.current.addEventListener('input', async () => {
+      console.log('Answer from peer received');
+      const answer = JSON.parse(answerFromPeerElementRef.current.value);
+      await peerConnection.setRemoteDescription(answer);
+      console.log('Remote description set');
+    });
+
+    if (!isSender) {
+      console.log('Setting up receiver to handle incoming stream...');
+      peerConnection.ontrack = (event) => {
+        console.log('Incoming stream received');
+        videoRef.current.srcObject = event.streams[0];
+      };
+      monitorBitrate('inbound-rtp');
+    }
+  };
+
+  const finalizeOfferOrAnswer = () => {
+    if (isSender) {
+      console.log('Finalizing offer');
+      offerElementRef.current.value = JSON.stringify(
+        peerConnectionRef.current.localDescription
+      );
+    } else {
+      console.log('Finalizing answer');
+      answerElementRef.current.value = JSON.stringify(
+        peerConnectionRef.current.localDescription
+      );
+    }
+  };
+
+  const monitorBitrate = (type) => {
+    setInterval(() => {
+      peerConnectionRef.current.getStats().then((stats) => {
+        stats.forEach((report) => {
+          if (
+            report.type === type &&
+            (report.bytesSent || report.bytesReceived)
+          ) {
+            const bytes = report.bytesSent || report.bytesReceived;
+            const bitrate = ((bytes - lastBytesRef.current) * 8) / 1000; // kbps
+            console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
+            bitrateRef.current.textContent = `${bitrate.toFixed(2)} kbps`;
+            lastBytesRef.current = bytes;
+          }
+        });
+      });
+    }, 1000);
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
+    <div>
+      <h1 ref={roleTitleRef}>WebRTC Setup</h1>
+      <button onClick={startSender}>Start Sender</button>
+      <button onClick={startReceiver}>Start Receiver</button>
+
+      <video ref={videoRef} autoPlay loop muted></video>
+      <p>
+        Current Bitrate: <span ref={bitrateRef}>Calculating...</span>
+      </p>
+
+      <div ref={offerContainerRef} className="container hidden">
+        <textarea
+          ref={offerElementRef}
+          placeholder="OFFER (computing...)"
+          readOnly
+        ></textarea>
+        <button
+          onClick={() =>
+            navigator.clipboard.writeText(offerElementRef.current.value)
+          }
+        >
+          Copy Offer
+        </button>
       </div>
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+      <div ref={offerFromPeerContainerRef} className="container hidden">
+        <textarea
+          ref={offerFromPeerElementRef}
+          placeholder="OFFER FROM PEER"
+        ></textarea>
+        <button
+          onClick={async () => {
+            const text = await navigator.clipboard.readText();
+            offerFromPeerElementRef.current.value = text;
+            offerFromPeerElementRef.current.dispatchEvent(new Event('input'));
+          }}
+        >
+          Paste Offer
+        </button>
       </div>
 
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
+      <div ref={answerContainerRef} className="container hidden">
+        <textarea
+          ref={answerElementRef}
+          placeholder="ANSWER (after Offer From Peer)"
+          readOnly
+        ></textarea>
+        <button
+          onClick={() =>
+            navigator.clipboard.writeText(answerElementRef.current.value)
+          }
         >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+          Copy Answer
+        </button>
       </div>
-    </main>
+
+      <div ref={answerFromPeerContainerRef} className="container hidden">
+        <textarea
+          ref={answerFromPeerElementRef}
+          placeholder="ANSWER FROM PEER"
+        ></textarea>
+        <button
+          onClick={async () => {
+            const text = await navigator.clipboard.readText();
+            answerFromPeerElementRef.current.value = text;
+            answerFromPeerElementRef.current.dispatchEvent(new Event('input'));
+          }}
+        >
+          Paste Answer
+        </button>
+      </div>
+    </div>
   );
 }
