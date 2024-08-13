@@ -169,11 +169,7 @@ export default function HomePage() {
 
   const setupVideo = async () => {
     const videoElement = videoRef.current!;
-    const videoSource =
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
-        ? `${window.location.origin}/sintel_trailer-1080p.mp4`
-        : 'https://download.blender.org/durian/trailer/sintel_trailer-1080p.mp4';
+    const videoSource = "sintel_trailer-1080p.mp4";
 
     videoElement.src = videoSource;
 
