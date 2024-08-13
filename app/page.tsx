@@ -20,13 +20,6 @@ export default function HomePage() {
   const lastBytesRef = useRef(0);
   const iceGatheringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (shouldSetupWebRTC) {
-      setupWebRTC(true);
-      setShouldSetupWebRTC(false); // Reset the trigger
-    }
-  }, [shouldSetupWebRTC, setupWebRTC]);
-
   const startSender = async () => {
     console.log('Start Sender clicked');
     setIsSender(true);
@@ -179,6 +172,13 @@ export default function HomePage() {
       monitorBitrate('inbound-rtp');
     }
   };
+
+  useEffect(() => {
+    if (shouldSetupWebRTC) {
+      setupWebRTC(true);
+      setShouldSetupWebRTC(false); // Reset the trigger
+    }
+  }, [shouldSetupWebRTC, setupWebRTC]);
 
   const finalizeOfferOrAnswer = () => {
     if (isSender) {
