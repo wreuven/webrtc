@@ -46,12 +46,13 @@ export default function HomePage() {
 
       console.log('isSender during WebRTC setup:', isSender);
 
-      
+
       if (isSender) {
         console.log('Setting up video stream for WebRTC...');
         const videoElement = videoRef.current!;
         const stream = (videoElement as any).captureStream();
-        stream.getTracks().forEach((track) => {
+
+        stream.getTracks().forEach((track: MediaStreamTrack) => {
           peerConnection.addTrack(track, stream);
         });
 
