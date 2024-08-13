@@ -5,34 +5,34 @@ import { useState, useRef, useEffect } from 'react';
 export default function HomePage() {
   const [isSender, setIsSender] = useState(false);
   const [shouldSetupWebRTC, setShouldSetupWebRTC] = useState(false);
-  const roleTitleRef = useRef(null);
-  const videoRef = useRef(null);
-  const offerContainerRef = useRef(null);
-  const offerElementRef = useRef(null);
-  const offerFromPeerContainerRef = useRef(null);
-  const offerFromPeerElementRef = useRef(null);
-  const answerContainerRef = useRef(null);
-  const answerElementRef = useRef(null);
-  const answerFromPeerContainerRef = useRef(null);
-  const answerFromPeerElementRef = useRef(null);
-  const bitrateRef = useRef(null);
-  const peerConnectionRef = useRef(null);
+  const roleTitleRef = useRef<HTMLHeadingElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const offerContainerRef = useRef<HTMLDivElement>(null);
+  const offerElementRef = useRef<HTMLTextAreaElement>(null);
+  const offerFromPeerContainerRef = useRef<HTMLDivElement>(null);
+  const offerFromPeerElementRef = useRef<HTMLTextAreaElement>(null);
+  const answerContainerRef = useRef<HTMLDivElement>(null);
+  const answerElementRef = useRef<HTMLTextAreaElement>(null);
+  const answerFromPeerContainerRef = useRef<HTMLDivElement>(null);
+  const answerFromPeerElementRef = useRef<HTMLTextAreaElement>(null);
+  const bitrateRef = useRef<HTMLSpanElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
-  const iceGatheringTimeoutRef = useRef(null);
+  const iceGatheringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (shouldSetupWebRTC) {
       setupWebRTC(true);
       setShouldSetupWebRTC(false); // Reset the trigger
     }
-  }, [shouldSetupWebRTC]);
+  }, [shouldSetupWebRTC, setupWebRTC]);
 
   const startSender = async () => {
     console.log('Start Sender clicked');
     setIsSender(true);
-    roleTitleRef.current.textContent = 'Running as Sender';
-    offerContainerRef.current.classList.remove('hidden');
-    answerFromPeerContainerRef.current.classList.remove('hidden');
+    roleTitleRef.current!.textContent = 'Running as Sender';
+    offerContainerRef.current!.classList.remove('hidden');
+    answerFromPeerContainerRef.current!.classList.remove('hidden');
 
     console.log('Setting up video...');
     await setupVideo();
@@ -43,9 +43,9 @@ export default function HomePage() {
   const startReceiver = async () => {
     console.log('Start Receiver clicked');
     setIsSender(false);
-    roleTitleRef.current.textContent = 'Running as Receiver';
-    offerFromPeerContainerRef.current.classList.remove('hidden');
-    answerContainerRef.current.classList.remove('hidden');
+    roleTitleRef.current!.textContent = 'Running as Receiver';
+    offerFromPeerContainerRef.current!.classList.remove('hidden');
+    answerContainerRef.current!.classList.remove('hidden');
 
     console.log('Setting up WebRTC as Receiver...');
     setupWebRTC(false);
@@ -53,7 +53,7 @@ export default function HomePage() {
   };
 
   const setupVideo = async () => {
-    const videoElement = videoRef.current;
+    const videoElement = videoRef.current!;
     const videoSource =
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1'
@@ -63,7 +63,7 @@ export default function HomePage() {
     videoElement.src = videoSource;
 
     console.log('Waiting for video to load...');
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       videoElement.onloadeddata = () => {
         console.log('Video data loaded');
         resolve();
@@ -85,7 +85,7 @@ export default function HomePage() {
     peerConnection.onicecandidate = (event) => {
       if (!event.candidate) {
         console.log('ICE gathering complete');
-        clearTimeout(iceGatheringTimeoutRef.current);
+        clearTimeout(iceGatheringTimeoutRef.current!);
         finalizeOfferOrAnswer();
       } else {
         console.log('ICE candidate:', event.candidate);
@@ -101,7 +101,7 @@ export default function HomePage() {
 
     if (isSender) {
       console.log('Setting up video stream for WebRTC...');
-      const videoElement = videoRef.current;
+      const videoElement = videoRef.current!;
       const stream = videoElement.captureStream();
       stream.getTracks().forEach((track) => {
         peerConnection.addTrack(track, stream);
@@ -136,18 +136,18 @@ export default function HomePage() {
         console.log('Setting local description with modified SDP...');
         await peerConnection.setLocalDescription(modifiedOffer);
 
-        offerElementRef.current.value = JSON.stringify(
+        offerElementRef.current!.value = JSON.stringify(
           peerConnection.localDescription
         );
-        console.log('WebRTC offer created and set:', offerElementRef.current.value);
+        console.log('WebRTC offer created and set:', offerElementRef.current!.value);
       }
     } else {
       console.log('Receiver setup complete, waiting for offer.');
     }
 
-    offerFromPeerElementRef.current.addEventListener('input', async () => {
+    offerFromPeerElementRef.current!.addEventListener('input', async () => {
       console.log('Offer from peer received');
-      const offer = JSON.parse(offerFromPeerElementRef.current.value);
+      const offer = JSON.parse(offerFromPeerElementRef.current!.value);
       await peerConnection.setRemoteDescription(offer);
       console.log('Remote description set');
 
@@ -157,15 +157,15 @@ export default function HomePage() {
         await peerConnection.setLocalDescription(answer);
         console.log('Answer created and set:', answer);
 
-        answerElementRef.current.value = JSON.stringify(
+        answerElementRef.current!.value = JSON.stringify(
           peerConnection.localDescription
         );
       }
     });
 
-    answerFromPeerElementRef.current.addEventListener('input', async () => {
+    answerFromPeerElementRef.current!.addEventListener('input', async () => {
       console.log('Answer from peer received');
-      const answer = JSON.parse(answerFromPeerElementRef.current.value);
+      const answer = JSON.parse(answerFromPeerElementRef.current!.value);
       await peerConnection.setRemoteDescription(answer);
       console.log('Remote description set');
     });
@@ -174,7 +174,7 @@ export default function HomePage() {
       console.log('Setting up receiver to handle incoming stream...');
       peerConnection.ontrack = (event) => {
         console.log('Incoming stream received');
-        videoRef.current.srcObject = event.streams[0];
+        videoRef.current!.srcObject = event.streams[0];
       };
       monitorBitrate('inbound-rtp');
     }
@@ -183,20 +183,20 @@ export default function HomePage() {
   const finalizeOfferOrAnswer = () => {
     if (isSender) {
       console.log('Finalizing offer');
-      offerElementRef.current.value = JSON.stringify(
-        peerConnectionRef.current.localDescription
+      offerElementRef.current!.value = JSON.stringify(
+        peerConnectionRef.current!.localDescription
       );
     } else {
       console.log('Finalizing answer');
-      answerElementRef.current.value = JSON.stringify(
-        peerConnectionRef.current.localDescription
+      answerElementRef.current!.value = JSON.stringify(
+        peerConnectionRef.current!.localDescription
       );
     }
   };
 
-  const monitorBitrate = (type) => {
+  const monitorBitrate = (type: string) => {
     setInterval(() => {
-      peerConnectionRef.current.getStats().then((stats) => {
+      peerConnectionRef.current!.getStats().then((stats) => {
         stats.forEach((report) => {
           if (
             report.type === type &&
@@ -205,7 +205,7 @@ export default function HomePage() {
             const bytes = report.bytesSent || report.bytesReceived;
             const bitrate = ((bytes - lastBytesRef.current) * 8) / 1000; // kbps
             console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
-            bitrateRef.current.textContent = `${bitrate.toFixed(2)} kbps`;
+            bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
             lastBytesRef.current = bytes;
           }
         });
@@ -232,7 +232,7 @@ export default function HomePage() {
         ></textarea>
         <button
           onClick={() =>
-            navigator.clipboard.writeText(offerElementRef.current.value)
+            navigator.clipboard.writeText(offerElementRef.current!.value)
           }
         >
           Copy Offer
@@ -247,8 +247,8 @@ export default function HomePage() {
         <button
           onClick={async () => {
             const text = await navigator.clipboard.readText();
-            offerFromPeerElementRef.current.value = text;
-            offerFromPeerElementRef.current.dispatchEvent(new Event('input'));
+            offerFromPeerElementRef.current!.value = text;
+            offerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
           }}
         >
           Paste Offer
@@ -263,7 +263,7 @@ export default function HomePage() {
         ></textarea>
         <button
           onClick={() =>
-            navigator.clipboard.writeText(answerElementRef.current.value)
+            navigator.clipboard.writeText(answerElementRef.current!.value)
           }
         >
           Copy Answer
@@ -278,8 +278,8 @@ export default function HomePage() {
         <button
           onClick={async () => {
             const text = await navigator.clipboard.readText();
-            answerFromPeerElementRef.current.value = text;
-            answerFromPeerElementRef.current.dispatchEvent(new Event('input'));
+            answerFromPeerElementRef.current!.value = text;
+            answerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
           }}
         >
           Paste Answer
