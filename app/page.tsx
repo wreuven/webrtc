@@ -60,6 +60,10 @@ export default function HomePage() {
           console.log('Creating WebRTC offer...');
           const offer = await peerConnection.createOffer();
 
+          if (!offer.sdp) {
+            throw new Error('Failed to create offer: SDP is undefined.');
+          }          
+
           let modifiedSDP = offer.sdp;
 
           console.log('Modifying SDP for H.264 prioritization...');
