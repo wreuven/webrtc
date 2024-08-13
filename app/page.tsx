@@ -46,6 +46,7 @@ export default function HomePage() {
 
       console.log('isSender during WebRTC setup:', isSender);
 
+      
       if (isSender) {
         console.log('Setting up video stream for WebRTC...');
         const videoElement = videoRef.current!;
