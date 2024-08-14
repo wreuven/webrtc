@@ -20,6 +20,53 @@ export default function HomePage() {
   const lastBytesRef = useRef(0);
   const iceGatheringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const vercelSetKeyVal = async (key: string, val: any): Promise<void> => {
+    const response = await fetch('/api/set-key-val', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ key, val }),
+    });
+  
+    if (!response.ok) {
+      throw new Error('Failed to set key-value in Vercel Edge Config');
+    }
+  };
+
+  const vercelGetKeyVal = async (key: string): Promise<any> => {
+    const response = await fetch(`/api/get-key-val?key=${key}`);
+  
+    if (!response.ok) {
+      throw new Error('Failed to get key-value from Vercel Edge Config');
+    }
+  
+    const data = await response.json();
+    return data.val;
+  };
+
+  const vercelEventOnKeyValueChange = (
+    key: string,
+    callback: (newVal: any) => void,
+    interval = 1000
+  ): void => {
+    let currentValue: any;
+  
+    const checkForChange = async () => {
+      try {
+        const newVal = await vercelGetKeyVal(key);
+        if (newVal !== currentValue) {
+          currentValue = newVal;
+          callback(newVal);
+        }
+      } catch (error) {
+        console.error('Error checking key value change:', error);
+      }
+    };
+  
+    setInterval(checkForChange, interval);
+  };
+    
   const setupWebRTC = useCallback(
     async (createOffer: boolean = false) => {
       console.log('Creating RTCPeerConnection...');
