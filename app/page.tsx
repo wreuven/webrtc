@@ -66,7 +66,7 @@ export default function HomePage() {
   
     setInterval(checkForChange, interval);
   };
-    
+  
   const setupWebRTC = useCallback(
     async (createOffer: boolean = false) => {
       console.log('Creating RTCPeerConnection...');
@@ -92,7 +92,6 @@ export default function HomePage() {
       }, 10000);
 
       console.log('isSender during WebRTC setup:', isSender);
-
 
       if (isSender) {
         console.log('Setting up video stream for WebRTC...');
@@ -185,8 +184,11 @@ export default function HomePage() {
   );
 
   useEffect(() => {
-    if (shouldSetupWebRTC) {
+    if (shouldSetupWebRTC && isSender) {
       setupWebRTC(true);
+      setShouldSetupWebRTC(false); // Reset the trigger
+    } else if (shouldSetupWebRTC && !isSender) {
+      setupWebRTC(false);
       setShouldSetupWebRTC(false); // Reset the trigger
     }
   }, [shouldSetupWebRTC, setupWebRTC]);
@@ -212,7 +214,7 @@ export default function HomePage() {
     answerContainerRef.current!.classList.remove('hidden');
 
     console.log('Setting up WebRTC as Receiver...');
-    setupWebRTC(false);
+    setShouldSetupWebRTC(true);
     console.log('WebRTC setup complete.');
   };
 
