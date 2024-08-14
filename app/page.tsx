@@ -18,7 +18,6 @@ export default function HomePage() {
   const bitrateRef = useRef<HTMLSpanElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
-  const iceGatheringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const vercelSetKeyVal = async (key: string, val: any): Promise<void> => {
     const response = await fetch('/api/set-key-val', {
@@ -79,17 +78,11 @@ export default function HomePage() {
       peerConnection.onicecandidate = (event) => {
         if (!event.candidate) {
           console.log('ICE gathering complete');
-          clearTimeout(iceGatheringTimeoutRef.current!);
           finalizeOfferOrAnswer();
         } else {
           console.log('ICE candidate:', event.candidate);
         }
       };
-
-      iceGatheringTimeoutRef.current = setTimeout(() => {
-        console.log('ICE gathering timeout');
-        finalizeOfferOrAnswer();
-      }, 10000);
 
       console.log('isSender during WebRTC setup:', isSender);
 
