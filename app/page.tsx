@@ -154,13 +154,24 @@ export default function HomePage() {
           console.log('Creating WebRTC answer...');
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
-          console.log('Answer created and set:', answer);
-
-          answerElementRef.current!.value = JSON.stringify(
-            peerConnection.localDescription
-          );
         }
       });
+
+      peerConnection.ontrack = (event) => {
+        console.log('Incoming stream received');
+        const videoElement = videoRef.current!;
+        
+        // Clear previous srcObject if any
+        if (videoElement.srcObject !== event.streams[0]) {
+          videoElement.srcObject = event.streams[0];
+        }
+
+        videoElement.oncanplay = () => {
+          videoElement.play().catch((error) => {
+            console.error('Error playing the video stream:', error);
+          });
+        };
+      };
 
       answerFromPeerElementRef.current!.addEventListener('input', async () => {
         console.log('Answer from peer received');
@@ -170,11 +181,6 @@ export default function HomePage() {
       });
 
       if (!isSender) {
-        console.log('Setting up receiver to handle incoming stream...');
-        peerConnection.ontrack = (event) => {
-          console.log('Incoming stream received');
-          videoRef.current!.srcObject = event.streams[0];
-        };
         monitorBitrate('inbound-rtp');
       } else {
         monitorBitrate('outbound-rtp');
