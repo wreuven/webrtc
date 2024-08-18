@@ -211,11 +211,12 @@ export default function HomePage() {
           let offerReceived = false;
 
           // Set up a listener for manual pasting of the offer
-          vercelEventOnBlobChange('offer', async (newOffer) => {
-            if (!offerReceived && newOffer) {
+          offerFromPeerElementRef.current!.addEventListener('input', async () => {
+            if (!offerReceived && offerFromPeerElementRef.current!.value) {
               offerReceived = true;
-              console.log('Offer received via listener:', newOffer);
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(newOffer));
+              const pastedOffer = JSON.parse(offerFromPeerElementRef.current!.value);
+              console.log('Offer received via manual paste:', pastedOffer);
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(pastedOffer));
               console.log('Remote description set with received offer');
               finalizeWebRTCAnswer();
             }
@@ -323,11 +324,12 @@ export default function HomePage() {
       let offerReceived = false;
 
       // Set up a listener for manual pasting of the offer
-      vercelEventOnBlobChange('offer', async (newOffer) => {
-        if (!offerReceived && newOffer) {
+      offerFromPeerElementRef.current!.addEventListener('input', async () => {
+        if (!offerReceived && offerFromPeerElementRef.current!.value) {
           offerReceived = true;
-          console.log('Offer received via listener:', newOffer);
-          await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(newOffer));
+          const pastedOffer = JSON.parse(offerFromPeerElementRef.current!.value);
+          console.log('Offer received via manual paste:', pastedOffer);
+          await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(pastedOffer));
           console.log('Remote description set with received offer');
           finalizeWebRTCAnswer();
         }
