@@ -56,6 +56,7 @@ export default function HomePage() {
         const newVal = await vercelGetBlob(blobName);
         if (newVal !== currentValue) {
           currentValue = newVal;
+          console.log('Blob value changed name=', blobName, 'newVal=', newVal);
           callback(newVal);
         }
       } catch (error) {
