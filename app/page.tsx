@@ -19,33 +19,33 @@ export default function HomePage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
 
-  const vercelSetKeyVal = async (key: string, val: any): Promise<void> => {
-    const response = await fetch('/api/set-key-val', {
+  const vercelSetBlob = async (blobName: string, data: any): Promise<void> => {
+    const response = await fetch('/api/set-keyval', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ key, val }),
+      body: JSON.stringify({ key: blobName, val: data }),
     });
   
     if (!response.ok) {
-      throw new Error('Failed to set key-value in Vercel Edge Config');
+      throw new Error('Failed to upload blob to Vercel');
     }
   };
 
-  const vercelGetKeyVal = async (key: string): Promise<any> => {
-    const response = await fetch(`/api/get-key-val?key=${key}`);
+  const vercelGetBlob = async (blobName: string): Promise<any> => {
+    const response = await fetch(`/api/get-keyval?key=${blobName}`);
   
     if (!response.ok) {
-      throw new Error('Failed to get key-value from Vercel Edge Config');
+      throw new Error('Failed to retrieve blob from Vercel');
     }
   
     const data = await response.json();
     return data.val;
   };
 
-  const vercelEventOnKeyValueChange = (
-    key: string,
+  const vercelEventOnBlobChange = (
+    blobName: string,
     callback: (newVal: any) => void,
     interval = 1000
   ): void => {
@@ -53,13 +53,13 @@ export default function HomePage() {
   
     const checkForChange = async () => {
       try {
-        const newVal = await vercelGetKeyVal(key);
+        const newVal = await vercelGetBlob(blobName);
         if (newVal !== currentValue) {
           currentValue = newVal;
           callback(newVal);
         }
       } catch (error) {
-        console.error('Error checking key value change:', error);
+        console.error('Error checking blob value change:', error);
       }
     };
   
@@ -133,13 +133,13 @@ export default function HomePage() {
               peerConnection.localDescription
             );
 
-            console.log('Setting offer in Vercel Edge Config...');
-            await vercelSetKeyVal('offer', peerConnection.localDescription);
+            console.log('Uploading offer to Vercel Blob...');
+            await vercelSetBlob('offer', peerConnection.localDescription);
 
-            console.log('WebRTC offer created and set:', offerElementRef.current!.value);
+            console.log('WebRTC offer created and uploaded:', offerElementRef.current!.value);
 
             console.log('Listening for answer changes...');
-            vercelEventOnKeyValueChange('answer', async (newAnswer) => {
+            vercelEventOnBlobChange('answer', async (newAnswer) => {
               try {
                 console.log('New answer detected:', newAnswer);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(newAnswer));
@@ -152,7 +152,7 @@ export default function HomePage() {
         } else {
           console.log('Receiver setup complete, waiting for offer.');
 
-          const offer = await vercelGetKeyVal('offer');
+          const offer = await vercelGetBlob('offer');
           console.log('Received offer:', offer);
           await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
           console.log('Remote description set with received offer');
@@ -161,10 +161,10 @@ export default function HomePage() {
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
 
-          console.log('Setting answer in Vercel Edge Config...');
-          await vercelSetKeyVal('answer', peerConnection.localDescription);
+          console.log('Uploading answer to Vercel Blob...');
+          await vercelSetBlob('answer', peerConnection.localDescription);
 
-          console.log('WebRTC answer created and set:', JSON.stringify(answer));
+          console.log('WebRTC answer created and uploaded:', JSON.stringify(answer));
         }
 
         peerConnection.ontrack = (event) => {
