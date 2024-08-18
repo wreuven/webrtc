@@ -62,11 +62,11 @@ export default function HomePage() {
    
       return value;
     } catch (error) {
-      console.error(`Error retrieving blob "${blobName}":`, error.message);
+      console.error(`Error retrieving blob "${blobName}":`, (error as Error).message);
       throw error;
     }
   };
-        
+          
   const vercelEventOnBlobChange = (
     blobName: string,
     callback: (newVal: any) => void,
