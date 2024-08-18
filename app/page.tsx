@@ -194,12 +194,28 @@ export default function HomePage() {
 
             console.log('WebRTC offer created and uploaded:', offerElementRef.current!.value);
 
+            let answerReceived = false;
+
+            // Set up a listener for manual pasting of the answer
+            answerFromPeerElementRef.current!.addEventListener('input', async () => {
+              if (!answerReceived && answerFromPeerElementRef.current!.value) {
+                answerReceived = true;
+                const pastedAnswer = JSON.parse(answerFromPeerElementRef.current!.value);
+                console.log('Answer received via manual paste:', pastedAnswer);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(pastedAnswer));
+                console.log('Remote description set with received answer');
+              }
+            });
+
             console.log('Listening for answer changes...');
             vercelEventOnBlobChange('answer', async (newAnswer) => {
               try {
-                console.log('New answer detected:', newAnswer);
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(newAnswer));
-                console.log('Remote description set with new answer');
+                if (!answerReceived && newAnswer) {
+                  answerReceived = true;
+                  console.log('New answer detected via listener:', newAnswer);
+                  await peerConnection.setRemoteDescription(new RTCSessionDescription(newAnswer));
+                  console.log('Remote description set with new answer');
+                }
               } catch (error) {
                 console.error('Error setting remote description with new answer:', error);
               }
