@@ -67,6 +67,30 @@ export default function HomePage() {
     setInterval(checkForChange, interval);
   };
 
+  const waitForBlob = async (blobName: string, retries: number = 30, delay: number = 1000): Promise<any> => {
+    let blobData = null;
+  
+    while (retries > 0 && !blobData) {
+      try {
+        console.log(`Attempting to retrieve ${blobName}...`);
+        blobData = await vercelGetBlob(blobName);
+  
+        if (blobData) {
+          console.log(`${blobName} retrieved successfully:`, blobData);
+          return blobData;
+        }
+      } catch (error) {
+        console.error(`Error retrieving ${blobName}:`, error);
+      }
+  
+      console.log(`${blobName} not yet available, retrying...`);
+      await new Promise(resolve => setTimeout(resolve, delay)); // Wait before retrying
+      retries--;
+    }
+  
+    throw new Error(`Failed to retrieve ${blobName} after multiple attempts`);
+  };
+
   const setupWebRTC = useCallback(
     async (createOffer: boolean = false) => {
       try {
@@ -153,7 +177,7 @@ export default function HomePage() {
         } else {
           console.log('Receiver setup complete, waiting for offer.');
 
-          const offer = await vercelGetBlob('offer');
+          const offer = await waitForBlob('offer');
           console.log('Received offer:', offer);
           await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
           console.log('Remote description set with received offer');
