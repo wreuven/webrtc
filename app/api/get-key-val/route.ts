@@ -1,4 +1,4 @@
-import { get } from '@vercel/blob';
+import { kv } from '@vercel/kv';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -10,11 +10,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const blob = await get(key);
-    const json = await blob.text(); // Assuming the blob contains JSON data
+    // Retrieve the value from Vercel KV storage
+    const value = await kv.get(key);
 
-    return NextResponse.json(JSON.parse(json));
+    if (value === null) {
+      return NextResponse.json({ error: 'Key not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ value });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to retrieve blob' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to retrieve value' }, { status: 500 });
   }
 }

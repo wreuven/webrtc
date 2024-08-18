@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { kv } from '@vercel/kv';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -9,12 +9,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const blob = await put(key, JSON.stringify(val), {
-      access: 'public',
-    });
+    // Store the value in KV storage
+    await kv.set(key, val);
 
-    return NextResponse.json(blob);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to upload blob' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to store value in KV' }, { status: 500 });
   }
 }
