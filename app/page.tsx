@@ -20,7 +20,7 @@ export default function HomePage() {
   const lastBytesRef = useRef(0);
 
   const vercelSetBlob = async (blobName: string, data: any): Promise<void> => {
-    const response = await fetch('/api/set-keyval', {
+    const response = await fetch('/api/set-key-val', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,7 +34,7 @@ export default function HomePage() {
   };
 
   const vercelGetBlob = async (blobName: string): Promise<any> => {
-    const response = await fetch(`/api/get-keyval?key=${blobName}`);
+    const response = await fetch(`/api/get-key-val?key=${blobName}`);
   
     if (!response.ok) {
       throw new Error('Failed to retrieve blob from Vercel');
