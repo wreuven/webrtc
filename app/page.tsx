@@ -36,7 +36,7 @@ export default function HomePage() {
       }
       console.log(`Blob "${blobName}" uploaded successfully.`);
     } catch (error) {
-      console.error(`Failed to upload blob "${blobName}":`, error);
+      console.error(`Failed to upload blob "${blobName}":`, (error as Error).message);
     }
   };
   
@@ -66,7 +66,7 @@ export default function HomePage() {
       throw error;
     }
   };
-          
+        
   const vercelEventOnBlobChange = (
     blobName: string,
     callback: (newVal: any) => void,
@@ -103,7 +103,7 @@ export default function HomePage() {
           return blobData;
         }
       } catch (error) {
-        console.error(`Error retrieving ${blobName}:`, error);
+        console.error(`Error retrieving ${blobName}:`, (error as Error).message);
       }
   
       console.log(`${blobName} not yet available, retrying...`);
@@ -208,19 +208,35 @@ export default function HomePage() {
         } else {
           console.log('Receiver setup complete, waiting for offer.');
 
-          const offer = await waitForBlob('offer');
-          console.log('Received offer:', offer);
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-          console.log('Remote description set with received offer');
+          let offerReceived = false;
 
-          console.log('Creating WebRTC answer...');
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
+          // Set up a listener for manual pasting of the offer
+          vercelEventOnBlobChange('offer', async (newOffer) => {
+            if (!offerReceived && newOffer) {
+              offerReceived = true;
+              console.log('Offer received via listener:', newOffer);
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(newOffer));
+              console.log('Remote description set with received offer');
+              finalizeWebRTCAnswer();
+            }
+          });
 
-          console.log('Uploading answer to Vercel Blob...');
-          await vercelSetBlob('answer', peerConnection.localDescription);
+          // Proceed with waiting for the offer, but allow early exit if offer is manually pasted
+          const offer = await waitForBlob('offer', 30, 1000).catch((error) => {
+            if (offerReceived) {
+              console.log('Offer was already manually pasted.');
+            } else {
+              console.error('Failed to retrieve offer:', error);
+            }
+          });
 
-          console.log('WebRTC answer created and uploaded:', JSON.stringify(answer));
+          if (offer && !offerReceived) {
+            offerReceived = true;
+            console.log('Offer received via waitForBlob:', offer);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log('Remote description set with received offer');
+            finalizeWebRTCAnswer();
+          }
         }
 
         peerConnection.ontrack = (event) => {
@@ -304,10 +320,54 @@ export default function HomePage() {
       answerContainerRef.current!.classList.remove('hidden');
 
       console.log('Setting up WebRTC as Receiver...');
-      setShouldSetupWebRTC(true);
+      let offerReceived = false;
+
+      // Set up a listener for manual pasting of the offer
+      vercelEventOnBlobChange('offer', async (newOffer) => {
+        if (!offerReceived && newOffer) {
+          offerReceived = true;
+          console.log('Offer received via listener:', newOffer);
+          await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(newOffer));
+          console.log('Remote description set with received offer');
+          finalizeWebRTCAnswer();
+        }
+      });
+
+      // Proceed with waiting for the offer, but allow early exit if offer is manually pasted
+      const offer = await waitForBlob('offer', 30, 1000).catch((error) => {
+        if (offerReceived) {
+          console.log('Offer was already manually pasted.');
+        } else {
+          console.error('Failed to retrieve offer:', error);
+        }
+      });
+
+      if (offer && !offerReceived) {
+        offerReceived = true;
+        console.log('Offer received via waitForBlob:', offer);
+        await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log('Remote description set with received offer');
+        finalizeWebRTCAnswer();
+      }
+
       console.log('WebRTC setup complete.');
     } catch (error) {
       console.error('Error starting Receiver:', error);
+    }
+  };
+
+  const finalizeWebRTCAnswer = async () => {
+    try {
+      console.log('Creating WebRTC answer...');
+      const answer = await peerConnectionRef.current!.createAnswer();
+      await peerConnectionRef.current!.setLocalDescription(answer);
+
+      console.log('Uploading answer to Vercel Blob...');
+      await vercelSetBlob('answer', peerConnectionRef.current!.localDescription);
+
+      console.log('WebRTC answer created and uploaded:', JSON.stringify(answer));
+    } catch (error) {
+      console.error('Error finalizing WebRTC answer:', error);
     }
   };
 
