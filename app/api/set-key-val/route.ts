@@ -1,25 +1,20 @@
-const vercelSetBlob = async (blobName: string, data: any): Promise<void> => {
-    const response = await fetch('/api/set-keyval', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ key: blobName, val: data }),
+import { put } from '@vercel/blob';
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const { key, val } = await req.json();
+
+  if (!key || !val) {
+    return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
+  }
+
+  try {
+    const blob = await put(key, JSON.stringify(val), {
+      access: 'public',
     });
-  
-    if (!response.ok) {
-      throw new Error('Failed to upload blob to Vercel');
-    }
-  };
-  
-  const vercelGetBlob = async (blobName: string): Promise<any> => {
-    const response = await fetch(`/api/get-keyval?key=${blobName}`);
-  
-    if (!response.ok) {
-      throw new Error('Failed to retrieve blob from Vercel');
-    }
-  
-    const data = await response.json();
-    return data;
-  };
-  
+
+    return NextResponse.json(blob);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to upload blob' }, { status: 500 });
+  }
+}
