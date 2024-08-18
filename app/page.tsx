@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function HomePage() {
   const [isSender, setIsSender] = useState(false);
+  const [useWebcam, setUseWebcam] = useState(false);
   const [shouldSetupWebRTC, setShouldSetupWebRTC] = useState(false);
   const roleTitleRef = useRef<HTMLHeadingElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -20,30 +21,52 @@ export default function HomePage() {
   const lastBytesRef = useRef(0);
 
   const vercelSetBlob = async (blobName: string, data: any): Promise<void> => {
-    const response = await fetch('/api/set-key-val', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ key: blobName, val: data }),
-    });
+    try {
+      const serializedData = JSON.stringify(data); // Serialize the data before sending
+      const response = await fetch('/api/set-key-val', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key: blobName, val: serializedData }), // Store as a string
+      });
   
-    if (!response.ok) {
-      throw new Error('Failed to upload blob to Vercel');
+      if (!response.ok) {
+        throw new Error('Failed to upload blob to Vercel');
+      }
+      console.log(`Blob "${blobName}" uploaded successfully.`);
+    } catch (error) {
+      console.error(`Failed to upload blob "${blobName}":`, error);
     }
   };
-
+  
   const vercelGetBlob = async (blobName: string): Promise<any> => {
-    const response = await fetch(`/api/get-key-val?key=${blobName}`);
+    try {
+      console.log(`Fetching blob: ${blobName}`);
+      const response = await fetch(`/api/get-key-val?key=${blobName}`);
   
-    if (!response.ok) {
-      throw new Error('Failed to retrieve blob from Vercel');
+      if (!response.ok) {
+        console.error(`Server responded with status: ${response.status}`);
+        throw new Error(`Failed to retrieve blob "${blobName}" from Vercel`);
+      }
+  
+      const data = await response.json();
+      console.log(`Blob data fetched for ${blobName}:`, data);
+  
+      // Correctly access the value
+      const value = data.value;
+      if (!value) {
+        console.warn(`Blob "${blobName}" fetched but is null or undefined`);
+        return null;
+      }
+   
+      return value;
+    } catch (error) {
+      console.error(`Error retrieving blob "${blobName}":`, error.message);
+      throw error;
     }
-  
-    const data = await response.json();
-    return data.val;
   };
-
+        
   const vercelEventOnBlobChange = (
     blobName: string,
     callback: (newVal: any) => void,
@@ -115,7 +138,15 @@ export default function HomePage() {
         if (isSender) {
           console.log('Setting up video stream for WebRTC...');
           const videoElement = videoRef.current!;
-          const stream = (videoElement as any).captureStream();
+          let stream: MediaStream;
+
+          if (useWebcam) {
+            console.log('Using webcam as video source');
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          } else {
+            console.log('Using pre-recorded video as video source');
+            stream = (videoElement as any).captureStream();
+          }
 
           stream.getTracks().forEach((track: MediaStreamTrack) => {
             peerConnection.addTrack(track, stream);
@@ -217,7 +248,7 @@ export default function HomePage() {
         console.error('Error during WebRTC setup:', error);
       }
     },
-    [isSender]
+    [isSender, useWebcam]
   );
 
   useEffect(() => {
@@ -234,6 +265,7 @@ export default function HomePage() {
     try {
       console.log('Start Sender clicked');
       setIsSender(true);
+      setUseWebcam(false);
       roleTitleRef.current!.textContent = 'Running as Sender';
       offerContainerRef.current!.classList.remove('hidden');
       answerFromPeerContainerRef.current!.classList.remove('hidden');
@@ -244,6 +276,22 @@ export default function HomePage() {
       setShouldSetupWebRTC(true); // Trigger WebRTC setup after state update
     } catch (error) {
       console.error('Error starting Sender:', error);
+    }
+  };
+
+  const startWebcamSender = async () => {
+    try {
+      console.log('Start Webcam Sender clicked');
+      setIsSender(true);
+      setUseWebcam(true);
+      roleTitleRef.current!.textContent = 'Running as Webcam Sender';
+      offerContainerRef.current!.classList.remove('hidden');
+      answerFromPeerContainerRef.current!.classList.remove('hidden');
+
+      console.log('Setting up webcam...');
+      setShouldSetupWebRTC(true); // Trigger WebRTC setup after state update
+    } catch (error) {
+      console.error('Error starting Webcam Sender:', error);
     }
   };
 
@@ -330,6 +378,7 @@ export default function HomePage() {
     <div>
       <h1 ref={roleTitleRef}>WebRTC Setup</h1>
       <button onClick={startSender}>Start Sender</button>
+      <button onClick={startWebcamSender}>Start Webcam Sender</button>
       <button onClick={startReceiver}>Start Receiver</button>
 
       <video ref={videoRef} autoPlay loop muted></video>
