@@ -183,7 +183,6 @@ export default function HomePage() {
     await peerConnection.setLocalDescription(modifiedOffer);
 
     offerElementRef.current!.value = JSON.stringify(modifiedOffer);
-    answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
   }
 
   async function finalizeAndSaveOffer() {
@@ -237,7 +236,6 @@ export default function HomePage() {
   }
 
   async function waitForAnswerFromVercel() {
-    answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
     const answer = await waitForKeyValueFromVercel('answer');
     answerFromPeerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
     console.log('Final answer received from Vercel:', answer);
