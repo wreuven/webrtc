@@ -321,20 +321,19 @@ export default function HomePage() {
     try {
       setInterval(() => {
         peerConnectionRef.current!.getStats().then((stats) => {
+          let bytesTransferred = 0;
           stats.forEach((report) => {
             if (
               report.type === type &&
               (report.bytesSent || report.bytesReceived)
             ) {
-              const bytes = report.bytesSent || report.bytesReceived;
-              const bitrate = ((bytes - lastBytesRef.current) * 8) / 1000; // kbps
-              console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
-              // print Send and Received bytes
-              console.log(`Bytes Sent=${report.bytesSent} Recvd=${report.bytesReceived}`);
-              bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
-              lastBytesRef.current = bytes;
+              bytesTransferred += report.bytesSent || report.bytesReceived;
             }
           });
+          const bitrate = ((bytesTransferred - lastBytesRef.current) * 8) / 1000; // kbps
+          console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
+          bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
+          lastBytesRef.current = bytesTransferred;
         });
       }, 1000);
     } catch (error) {
