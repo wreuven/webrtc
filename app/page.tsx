@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 
 export default function HomePage() {
+
+  const RETRY_SECS = 10;
+
   const [isSender, setIsSender] = useState(false);
   const [useWebcam, setUseWebcam] = useState(false);
   const [shouldSetupWebRTC, setShouldSetupWebRTC] = useState(false);
@@ -71,8 +74,8 @@ export default function HomePage() {
     while (!value || value.sdp === '') {
       value = await vercelGetKeyValue(key);
       if (!value || value.sdp === '') {
-        console.log(`No ${key} found, retrying...`);
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // wait for 10 seconds before retrying
+        console.log(`No ${key} found, retrying in ${RETRY_SECS} seconds...`);
+        await new Promise((resolve) => setTimeout(resolve, RETRY_SECS * 1000)); // wait for 10 seconds before retrying
       }
     }
     return value;
@@ -123,6 +126,7 @@ export default function HomePage() {
       } else {
         console.log('Waiting for offer from Vercel...');
         const offer = await waitForKeyValueFromVercel('offer');
+        offerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
 
         console.log('Setting remote description with received offer...');
@@ -180,25 +184,34 @@ export default function HomePage() {
     try {
       console.log('Finalizing and saving offer to Vercel...');
       const localDescription = peerConnectionRef.current!.localDescription;
+      
+      // Display the offer in the appropriate text box
+      offerElementRef.current!.value = JSON.stringify(localDescription);
+  
       await vercelSetKeyValue('offer', localDescription);
       console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
-
+  
       await waitForAnswerFromVercel();
     } catch (error) {
       console.error('Error finalizing and saving offer:', error);
     }
   }
-
+  
   async function finalizeAndSaveAnswer() {
     try {
       console.log('Finalizing and saving answer to Vercel...');
       const localDescription = peerConnectionRef.current!.localDescription;
+  
+      // Display the answer in the appropriate text box
+      answerElementRef.current!.value = JSON.stringify(localDescription);
+  
       await vercelSetKeyValue('answer', localDescription);
       console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
     } catch (error) {
       console.error('Error finalizing and saving answer:', error);
     }
   }
+  
 
   function modifySDPForH264(sdp: string): string {
     console.log('Modifying SDP for H.264 prioritization...');
@@ -219,6 +232,7 @@ export default function HomePage() {
 
   async function waitForAnswerFromVercel() {
     const answer = await waitForKeyValueFromVercel('answer');
+    answerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
     console.log('Final answer received from Vercel:', answer);
     await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(answer));
     console.log('Answer set on peer connection');
