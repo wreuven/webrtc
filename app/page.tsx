@@ -125,9 +125,12 @@ export default function HomePage() {
         await setupSender(peerConnection);
       } else {
         console.log('Waiting for offer from Vercel...');
+        offerFromPeerElementRef.current!.value = "Waiting for offer from sender";
         const offer = await waitForKeyValueFromVercel('offer');
         offerFromPeerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
+
+        answerElementRef.current!.value = "Generating Answer";
 
         console.log('Setting remote description with received offer...');
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -164,6 +167,8 @@ export default function HomePage() {
       peerConnection.addTrack(track, stream);
     });
 
+    offerElementRef.current!.value = "Generating Offer";
+
     console.log('Creating initial WebRTC offer...');
     const offer = await peerConnection.createOffer();
 
@@ -177,41 +182,42 @@ export default function HomePage() {
     console.log('Setting local description with modified SDP...');
     await peerConnection.setLocalDescription(modifiedOffer);
 
-    offerElementRef.current!.value = "Collecting ICE Candidates and Generating Offer... Please Wait (30+ seconds)...";
+    offerElementRef.current!.value = JSON.stringify(modifiedOffer);
+    answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
   }
 
   async function finalizeAndSaveOffer() {
     try {
       console.log('Finalizing and saving offer to Vercel...');
       const localDescription = peerConnectionRef.current!.localDescription;
-      
+
       // Display the offer in the appropriate text box
       offerElementRef.current!.value = JSON.stringify(localDescription);
-  
+
       await vercelSetKeyValue('offer', localDescription);
       console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
-  
+
+      answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
       await waitForAnswerFromVercel();
     } catch (error) {
       console.error('Error finalizing and saving offer:', error);
     }
   }
-  
+
   async function finalizeAndSaveAnswer() {
     try {
       console.log('Finalizing and saving answer to Vercel...');
       const localDescription = peerConnectionRef.current!.localDescription;
-  
+
       // Display the answer in the appropriate text box
       answerElementRef.current!.value = JSON.stringify(localDescription);
-  
+
       await vercelSetKeyValue('answer', localDescription);
       console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
     } catch (error) {
       console.error('Error finalizing and saving answer:', error);
     }
   }
-  
 
   function modifySDPForH264(sdp: string): string {
     console.log('Modifying SDP for H.264 prioritization...');
@@ -231,6 +237,7 @@ export default function HomePage() {
   }
 
   async function waitForAnswerFromVercel() {
+    answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
     const answer = await waitForKeyValueFromVercel('answer');
     answerFromPeerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
     console.log('Final answer received from Vercel:', answer);
@@ -363,35 +370,41 @@ export default function HomePage() {
       </p>
   
       <div ref={offerContainerRef} className="mb-5 hidden">
+        <label className="block text-sm font-medium text-gray-700">Offer</label>
         <textarea
           ref={offerElementRef}
-          placeholder="OFFER (computing...)"
+          placeholder="Generating Offer..."
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
   
       <div ref={offerFromPeerContainerRef} className="mb-5 hidden">
+        <label className="block text-sm font-medium text-gray-700">Offer from Sender</label>
         <textarea
           ref={offerFromPeerElementRef}
-          placeholder="OFFER FROM PEER"
+          placeholder="Waiting for offer from sender"
+          readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
   
       <div ref={answerContainerRef} className="mb-5 hidden">
+        <label className="block text-sm font-medium text-gray-700">Answer</label>
         <textarea
           ref={answerElementRef}
-          placeholder="ANSWER (after Offer From Peer)"
+          placeholder="Answer (after Offer from Sender)"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
   
       <div ref={answerFromPeerContainerRef} className="mb-5 hidden">
+        <label className="block text-sm font-medium text-gray-700">Answer from Receiver</label>
         <textarea
           ref={answerFromPeerElementRef}
-          placeholder="ANSWER FROM PEER"
+          placeholder="Waiting for answer from receiver"
+          readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
