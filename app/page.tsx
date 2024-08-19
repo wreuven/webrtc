@@ -126,7 +126,7 @@ export default function HomePage() {
       } else {
         console.log('Waiting for offer from Vercel...');
         const offer = await waitForKeyValueFromVercel('offer');
-        offerElementRef.current!.value = JSON.stringify(offer); // show offer on page
+        offerFromPeerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
 
         console.log('Setting remote description with received offer...');
@@ -232,7 +232,7 @@ export default function HomePage() {
 
   async function waitForAnswerFromVercel() {
     const answer = await waitForKeyValueFromVercel('answer');
-    answerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
+    answerFromPeerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
     console.log('Final answer received from Vercel:', answer);
     await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(answer));
     console.log('Answer set on peer connection');
