@@ -20,7 +20,7 @@ export default function HomePage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
 
-  const vercelSetBlob = async (blobName: string, data: any): Promise<void> => {
+  const vercelSetKeyValue = async (key: string, data: any): Promise<void> => {
     try {
       const serializedData = JSON.stringify(data); // Serialize the data before sending
       const response = await fetch('/api/set-key-val', {
@@ -28,90 +28,74 @@ export default function HomePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ key: blobName, val: serializedData }), // Store as a string
+        body: JSON.stringify({ key: key, val: serializedData }), // Store as a string
       });
   
       if (!response.ok) {
-        throw new Error('Failed to upload blob to Vercel');
+        throw new Error('Failed to upload key-value to Vercel');
       }
-      console.log(`Blob "${blobName}" uploaded successfully.`);
+      console.log(`KeyValue "${key}" uploaded successfully.`);
     } catch (error) {
-      console.error(`Failed to upload blob "${blobName}":`, (error as Error).message);
+      console.error(`Failed to upload key-value "${key}":`, (error as Error).message);
     }
   };
   
-  const vercelGetBlob = async (blobName: string): Promise<any> => {
+  const vercelGetKeyValue = async (key: string): Promise<any> => {
     try {
-      console.log(`Fetching blob: ${blobName}`);
-      const response = await fetch(`/api/get-key-val?key=${blobName}`);
+      console.log(`Fetching key-value: ${key}`);
+      const response = await fetch(`/api/get-key-val?key=${key}`);
   
       if (!response.ok) {
         console.error(`Server responded with status: ${response.status}`);
-        throw new Error(`Failed to retrieve blob "${blobName}" from Vercel`);
+        throw new Error(`Failed to retrieve key-value "${key}" from Vercel`);
       }
   
       const data = await response.json();
-      console.log(`Blob data fetched for ${blobName}:`, data);
+      console.log(`KeyValue data fetched for ${key}:`, data);
   
       // Correctly access the value
       const value = data.value;
       if (!value) {
-        console.warn(`Blob "${blobName}" fetched but is null or undefined`);
+        console.warn(`KeyValue "${key}" fetched but is null or undefined`);
         return null;
       }
    
       return value;
     } catch (error) {
-      console.error(`Error retrieving blob "${blobName}":`, (error as Error).message);
+      console.error(`Error retrieving key-value "${key}":`, (error as Error).message);
       throw error;
     }
   };
         
-  const vercelEventOnBlobChange = (
-    blobName: string,
+  const vercelEventOnKeyValueChange = (
+    key: string,
     callback: (newVal: any) => void,
     interval = 1000
-  ): void => {
+  ): () => void => {
     let currentValue: any;
-  
+    let stopPolling = false;
+
     const checkForChange = async () => {
       try {
-        const newVal = await vercelGetBlob(blobName);
+        if (stopPolling) return;
+        const newVal = await vercelGetKeyValue(key);
         if (newVal !== currentValue) {
           currentValue = newVal;
-          console.log('Blob value changed name=', blobName, 'newVal=', newVal);
+          console.log('KeyValue value changed name=', key, 'newVal=', newVal);
           callback(newVal);
         }
       } catch (error) {
-        console.error('Error checking blob value change:', error);
+        console.error('Error checking key-value value change:', error);
       }
     };
   
-    setInterval(checkForChange, interval);
-  };
+    const intervalId = setInterval(checkForChange, interval);
 
-  const waitForBlob = async (blobName: string, retries: number = 30, delay: number = 1000): Promise<any> => {
-    let blobData = null;
-  
-    while (retries > 0 && !blobData) {
-      try {
-        console.log(`Attempting to retrieve ${blobName}...`);
-        blobData = await vercelGetBlob(blobName);
-  
-        if (blobData) {
-          console.log(`${blobName} retrieved successfully:`, blobData);
-          return blobData;
-        }
-      } catch (error) {
-        console.error(`Error retrieving ${blobName}:`, (error as Error).message);
-      }
-  
-      console.log(`${blobName} not yet available, retrying...`);
-      await new Promise(resolve => setTimeout(resolve, delay)); // Wait before retrying
-      retries--;
-    }
-  
-    throw new Error(`Failed to retrieve ${blobName} after multiple attempts`);
+    // Return a function to stop the polling
+    return () => {
+      clearInterval(intervalId);
+      stopPolling = true;
+    };
   };
 
   const setupWebRTC = useCallback(
@@ -189,71 +173,67 @@ export default function HomePage() {
               peerConnection.localDescription
             );
 
-            console.log('Uploading offer to Vercel Blob...');
-            await vercelSetBlob('offer', peerConnection.localDescription);
+            console.log('Uploading offer to Vercel KeyValue...');
+            await vercelSetKeyValue('offer', peerConnection.localDescription);
 
             console.log('WebRTC offer created and uploaded:', offerElementRef.current!.value);
 
-            let answerReceived = false;
-
-            // Set up a listener for manual pasting of the answer
-            answerFromPeerElementRef.current!.addEventListener('input', async () => {
-              if (!answerReceived && answerFromPeerElementRef.current!.value) {
-                answerReceived = true;
-                const pastedAnswer = JSON.parse(answerFromPeerElementRef.current!.value);
-                console.log('Answer received via manual paste:', pastedAnswer);
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(pastedAnswer));
-                console.log('Remote description set with received answer');
-              }
-            });
-
-            console.log('Listening for answer changes...');
-            vercelEventOnBlobChange('answer', async (newAnswer) => {
+            let stopAnswerPolling = vercelEventOnKeyValueChange('answer', async (newAnswer) => {
               try {
-                if (!answerReceived && newAnswer) {
-                  answerReceived = true;
+                if (newAnswer) {
                   console.log('New answer detected via listener:', newAnswer);
                   await peerConnection.setRemoteDescription(new RTCSessionDescription(newAnswer));
                   console.log('Remote description set with new answer');
+                  stopAnswerPolling(); // Stop polling when the answer is received
                 }
               } catch (error) {
                 console.error('Error setting remote description with new answer:', error);
               }
             });
+
+            // Set up a listener for manual pasting of the answer
+            answerFromPeerElementRef.current!.addEventListener('input', async () => {
+              if (answerFromPeerElementRef.current!.value) {
+                const pastedAnswer = JSON.parse(answerFromPeerElementRef.current!.value);
+                console.log('Answer received via manual paste:', pastedAnswer);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(pastedAnswer));
+                console.log('Remote description set with received answer');
+                stopAnswerPolling(); // Stop polling when the answer is manually pasted
+              }
+            });
+
+            console.log('Listening for answer changes...');
           }
         } else {
           console.log('Receiver setup complete, waiting for offer.');
 
-          let offerReceived = false;
+          let stopOfferPolling = vercelEventOnKeyValueChange('offer', async (newOffer) => {
+            try {
+              if (newOffer) {
+                console.log('New offer detected via listener:', newOffer);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(newOffer));
+                console.log('Remote description set with new offer');
+                finalizeWebRTCAnswer();
+                stopOfferPolling(); // Stop polling when the offer is received
+              }
+            } catch (error) {
+              console.error('Error setting remote description with new offer:', error);
+            }
+          });
 
           // Set up a listener for manual pasting of the offer
           offerFromPeerElementRef.current!.addEventListener('input', async () => {
-            if (!offerReceived && offerFromPeerElementRef.current!.value) {
-              offerReceived = true;
+            if (offerFromPeerElementRef.current!.value) {
               const pastedOffer = JSON.parse(offerFromPeerElementRef.current!.value);
               console.log('Offer received via manual paste:', pastedOffer);
               await peerConnection.setRemoteDescription(new RTCSessionDescription(pastedOffer));
               console.log('Remote description set with received offer');
               finalizeWebRTCAnswer();
+              stopOfferPolling(); // Stop polling when the offer is manually pasted
             }
           });
 
-          // Proceed with waiting for the offer, but allow early exit if offer is manually pasted
-          const offer = await waitForBlob('offer', 30, 1000).catch((error) => {
-            if (offerReceived) {
-              console.log('Offer was already manually pasted.');
-            } else {
-              console.error('Failed to retrieve offer:', error);
-            }
-          });
-
-          if (offer && !offerReceived) {
-            offerReceived = true;
-            console.log('Offer received via waitForBlob:', offer);
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            console.log('Remote description set with received offer');
-            finalizeWebRTCAnswer();
-          }
+          console.log('Listening for offer changes...');
         }
 
         peerConnection.ontrack = (event) => {
@@ -337,38 +317,7 @@ export default function HomePage() {
       answerContainerRef.current!.classList.remove('hidden');
 
       console.log('Setting up WebRTC as Receiver...');
-      let offerReceived = false;
-
-      // Set up a listener for manual pasting of the offer
-      offerFromPeerElementRef.current!.addEventListener('input', async () => {
-        if (!offerReceived && offerFromPeerElementRef.current!.value) {
-          offerReceived = true;
-          const pastedOffer = JSON.parse(offerFromPeerElementRef.current!.value);
-          console.log('Offer received via manual paste:', pastedOffer);
-          await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(pastedOffer));
-          console.log('Remote description set with received offer');
-          finalizeWebRTCAnswer();
-        }
-      });
-
-      // Proceed with waiting for the offer, but allow early exit if offer is manually pasted
-      const offer = await waitForBlob('offer', 30, 1000).catch((error) => {
-        if (offerReceived) {
-          console.log('Offer was already manually pasted.');
-        } else {
-          console.error('Failed to retrieve offer:', error);
-        }
-      });
-
-      if (offer && !offerReceived) {
-        offerReceived = true;
-        console.log('Offer received via waitForBlob:', offer);
-        await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(offer));
-        console.log('Remote description set with received offer');
-        finalizeWebRTCAnswer();
-      }
-
-      console.log('WebRTC setup complete.');
+      setShouldSetupWebRTC(true); // Trigger WebRTC setup after state update
     } catch (error) {
       console.error('Error starting Receiver:', error);
     }
@@ -380,8 +329,8 @@ export default function HomePage() {
       const answer = await peerConnectionRef.current!.createAnswer();
       await peerConnectionRef.current!.setLocalDescription(answer);
 
-      console.log('Uploading answer to Vercel Blob...');
-      await vercelSetBlob('answer', peerConnectionRef.current!.localDescription);
+      console.log('Uploading answer to Vercel KeyValue...');
+      await vercelSetKeyValue('answer', peerConnectionRef.current!.localDescription);
 
       console.log('WebRTC answer created and uploaded:', JSON.stringify(answer));
     } catch (error) {
