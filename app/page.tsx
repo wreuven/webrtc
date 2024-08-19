@@ -369,14 +369,6 @@ export default function HomePage() {
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
-        <button
-          onClick={() =>
-            navigator.clipboard.writeText(offerElementRef.current!.value)
-          }
-          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
-        >
-          Copy Offer
-        </button>
       </div>
   
       <div ref={offerFromPeerContainerRef} className="mb-5 hidden">
@@ -385,16 +377,6 @@ export default function HomePage() {
           placeholder="OFFER FROM PEER"
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
-        <button
-          onClick={async () => {
-            const text = await navigator.clipboard.readText();
-            offerFromPeerElementRef.current!.value = text;
-            offerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
-          }}
-          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
-        >
-          Paste Offer
-        </button>
       </div>
   
       <div ref={answerContainerRef} className="mb-5 hidden">
@@ -404,14 +386,6 @@ export default function HomePage() {
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
-        <button
-          onClick={() =>
-            navigator.clipboard.writeText(answerElementRef.current!.value)
-          }
-          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
-        >
-          Copy Answer
-        </button>
       </div>
   
       <div ref={answerFromPeerContainerRef} className="mb-5 hidden">
@@ -420,16 +394,6 @@ export default function HomePage() {
           placeholder="ANSWER FROM PEER"
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
-        <button
-          onClick={async () => {
-            const text = await navigator.clipboard.readText();
-            answerFromPeerElementRef.current!.value = text;
-            answerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
-          }}
-          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
-        >
-          Paste Answer
-        </button>
       </div>
     </div>
   );
