@@ -167,7 +167,7 @@ export default function HomePage() {
     console.log('Creating initial WebRTC offer...');
     const offer = await peerConnection.createOffer();
 
-    let modifiedSDP = modifySDPForH264(offer.sdp);
+    let modifiedSDP = modifySDPForH264(offer.sdp!);
 
     const modifiedOffer = new RTCSessionDescription({
       type: offer.type,
