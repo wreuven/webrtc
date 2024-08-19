@@ -159,15 +159,15 @@ export default function HomePage() {
         let modifiedSDP = offer.sdp;
 
         console.log('Modifying SDP for H.264 prioritization...');
-        modifiedSDP = modifiedSDP.replace(
+        modifiedSDP = modifiedSDP!.replace(
           /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
           'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
         );
-        modifiedSDP = modifiedSDP.replace(
+        modifiedSDP = modifiedSDP!.replace(
           /a=mid:1\r\n/g,
           'a=mid:1\r\nb=AS:5000\r\n'
         );
-        modifiedSDP = modifiedSDP.replace(
+        modifiedSDP = modifiedSDP!.replace(
           /a=rtpmap:102 H264\/90000\r\n/g,
           'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
         );
