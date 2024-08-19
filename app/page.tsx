@@ -349,36 +349,41 @@ export default function HomePage() {
   }, [shouldSetupWebRTC]);
 
   return (
-    <div>
-      <h1 ref={roleTitleRef}>WebRTC Setup</h1>
-      <button onClick={startSender}>Start Sender</button>
-      <button onClick={startWebcamSender}>Start Webcam Sender</button>
-      <button onClick={startReceiver}>Start Receiver</button>
-
-      <video ref={videoRef} autoPlay loop muted></video>
-      <p>
+    <div className="p-4">
+      <h1 ref={roleTitleRef} className="text-2xl font-bold mb-4">WebRTC Setup</h1>
+      <div className="space-x-4 mb-4">
+        <button onClick={startSender} className="bg-blue-500 text-white px-4 py-2 rounded">Start Sender</button>
+        <button onClick={startWebcamSender} className="bg-blue-500 text-white px-4 py-2 rounded">Start Webcam Sender</button>
+        <button onClick={startReceiver} className="bg-blue-500 text-white px-4 py-2 rounded">Start Receiver</button>
+      </div>
+  
+      <video ref={videoRef} autoPlay loop muted className="w-full max-w-5xl mb-4"></video>
+      <p className="text-lg mb-4">
         Current Bitrate: <span ref={bitrateRef}>Calculating...</span>
       </p>
-
-      <div ref={offerContainerRef} className="container hidden">
+  
+      <div ref={offerContainerRef} className="mb-5 hidden">
         <textarea
           ref={offerElementRef}
           placeholder="OFFER (computing...)"
           readOnly
+          className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
         <button
           onClick={() =>
             navigator.clipboard.writeText(offerElementRef.current!.value)
           }
+          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
         >
           Copy Offer
         </button>
       </div>
-
-      <div ref={offerFromPeerContainerRef} className="container hidden">
+  
+      <div ref={offerFromPeerContainerRef} className="mb-5 hidden">
         <textarea
           ref={offerFromPeerElementRef}
           placeholder="OFFER FROM PEER"
+          className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
         <button
           onClick={async () => {
@@ -386,30 +391,34 @@ export default function HomePage() {
             offerFromPeerElementRef.current!.value = text;
             offerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
           }}
+          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
         >
           Paste Offer
         </button>
       </div>
-
-      <div ref={answerContainerRef} className="container hidden">
+  
+      <div ref={answerContainerRef} className="mb-5 hidden">
         <textarea
           ref={answerElementRef}
           placeholder="ANSWER (after Offer From Peer)"
           readOnly
+          className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
         <button
           onClick={() =>
             navigator.clipboard.writeText(answerElementRef.current!.value)
           }
+          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
         >
           Copy Answer
         </button>
       </div>
-
-      <div ref={answerFromPeerContainerRef} className="container hidden">
+  
+      <div ref={answerFromPeerContainerRef} className="mb-5 hidden">
         <textarea
           ref={answerFromPeerElementRef}
           placeholder="ANSWER FROM PEER"
+          className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
         <button
           onClick={async () => {
@@ -417,6 +426,7 @@ export default function HomePage() {
             answerFromPeerElementRef.current!.value = text;
             answerFromPeerElementRef.current!.dispatchEvent(new Event('input'));
           }}
+          className="bg-green-500 text-white px-4 py-2 rounded mt-2"
         >
           Paste Answer
         </button>
