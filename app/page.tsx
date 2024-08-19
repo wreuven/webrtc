@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function HomePage() {
   const [isSender, setIsSender] = useState(false);
@@ -20,15 +20,15 @@ export default function HomePage() {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const lastBytesRef = useRef(0);
 
-  const vercelSetKeyValue = async (key: string, data: any): Promise<void> => {
+  async function vercelSetKeyValue(key: string, data: any): Promise<void> {
     try {
-      const serializedData = JSON.stringify(data); // Serialize the data before sending
+      const serializedData = JSON.stringify(data);
       const response = await fetch('/api/set-key-val', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ key: key, val: serializedData }), // Store as a string
+        body: JSON.stringify({ key: key, val: serializedData }),
       });
 
       if (!response.ok) {
@@ -38,9 +38,9 @@ export default function HomePage() {
     } catch (error) {
       console.error(`Failed to upload key-value "${key}":`, (error as Error).message);
     }
-  };
+  }
 
-  const vercelGetKeyValue = async (key: string): Promise<any> => {
+  async function vercelGetKeyValue(key: string): Promise<any> {
     try {
       console.log(`Fetching key-value: ${key}`);
       const response = await fetch(`/api/get-key-val?key=${key}`);
@@ -64,40 +64,21 @@ export default function HomePage() {
       console.error(`Error retrieving key-value "${key}":`, (error as Error).message);
       throw error;
     }
-  };
+  }
 
-  const vercelEventOnKeyValueChange = (
-    key: string,
-    callback: (newVal: any) => void,
-    interval = 10000
-  ): () => void => {
-    let currentValue: any;
-    let stopPolling = false;
-
-    const checkForChange = async () => {
-      try {
-        if (stopPolling) return;
-        const newVal = await vercelGetKeyValue(key);
-        if (newVal !== currentValue) {
-          currentValue = newVal;
-          console.log('KeyValue value changed name=', key, 'newVal=', newVal);
-          callback(newVal);
-        }
-      } catch (error) {
-        console.error('Error checking key-value value change:', error);
+  async function waitForKeyValueFromVercel(key: string): Promise<any> {
+    let value = null;
+    while (!value || value.sdp === '') {
+      value = await vercelGetKeyValue(key);
+      if (!value || value.sdp === '') {
+        console.log(`No ${key} found, retrying...`);
+        await new Promise((resolve) => setTimeout(resolve, 10000)); // wait for 10 seconds before retrying
       }
-    };
+    }
+    return value;
+  }
 
-    const intervalId = setInterval(checkForChange, interval);
-
-    // Return a function to stop the polling
-    return () => {
-      clearInterval(intervalId);
-      stopPolling = true;
-    };
-  };
-
-  const setupWebRTC = useCallback(async () => {
+  async function setupWebRTC() {
     try {
       console.log('Creating RTCPeerConnection...');
       const peerConnection = new RTCPeerConnection({
@@ -110,9 +91,10 @@ export default function HomePage() {
         if (!event.candidate) { // null candidate indicates that ICE gathering is complete
           console.log('ICE gathering complete');
 
-          if (!isSender) {
-            console.log('Fetching offer from Vercel...');
-            fetchOfferAndSetRemoteDescription();
+          if (isSender) {
+            finalizeAndSaveOffer();
+          } else {
+            finalizeAndSaveAnswer();
           }
         } else {
           console.log('ICE candidate:', event.candidate);
@@ -121,14 +103,14 @@ export default function HomePage() {
 
       peerConnection.ontrack = (event) => {
         console.log('Incoming stream received');
-        const videoElement = videoRef.current!;
+        const videoElement = videoRef.current;
 
-        if (videoElement.srcObject !== event.streams[0]) {
-          videoElement.srcObject = event.streams[0];
+        if (videoElement!.srcObject !== event.streams[0]) {
+          videoElement!.srcObject = event.streams[0];
         }
 
-        videoElement.oncanplay = () => {
-          videoElement.play().catch((error) => {
+        videoElement!.oncanplay = () => {
+          videoElement!.play().catch((error) => {
             console.error('Error playing the video stream:', error);
           });
         };
@@ -137,95 +119,112 @@ export default function HomePage() {
       console.log('isSender during WebRTC setup:', isSender);
 
       if (isSender) {
-        console.log('Setting up video stream for WebRTC...');
-        const videoElement = videoRef.current!;
-        let stream: MediaStream;
-
-        if (useWebcam) {
-          console.log('Using webcam as video source');
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } else {
-          console.log('Using pre-recorded video as video source');
-          stream = (videoElement as any).captureStream();
-        }
-
-        stream.getTracks().forEach((track: MediaStreamTrack) => {
-          peerConnection.addTrack(track, stream);
-        });
-
-        console.log('Creating WebRTC offer...');
-        const offer = await peerConnection.createOffer();
-
-        let modifiedSDP = offer.sdp;
-
-        console.log('Modifying SDP for H.264 prioritization...');
-        modifiedSDP = modifiedSDP!.replace(
-          /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
-          'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
-        );
-        modifiedSDP = modifiedSDP!.replace(
-          /a=mid:1\r\n/g,
-          'a=mid:1\r\nb=AS:5000\r\n'
-        );
-        modifiedSDP = modifiedSDP!.replace(
-          /a=rtpmap:102 H264\/90000\r\n/g,
-          'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
-        );
-
-        const modifiedOffer = new RTCSessionDescription({
-          type: offer.type,
-          sdp: modifiedSDP,
-        });
-
-        console.log('Setting local description with modified SDP...');
-        await peerConnection.setLocalDescription(modifiedOffer);
-
-        offerElementRef.current!.value = "Collecting ICE Candidates and Generating Offer... Please Wait (30+ seconds)...";
+        await setupSender(peerConnection);
       } else {
-        console.log('Receiver setup complete, waiting for ICE gathering to finish before fetching the offer.');
+        console.log('Waiting for offer from Vercel...');
+        const offer = await waitForKeyValueFromVercel('offer');
+        console.log('Offer received:', offer);
+
+        console.log('Setting remote description with received offer...');
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log('Remote description set with received offer');
+
+        console.log('Creating interim WebRTC answer...');
+        const interimAnswer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(interimAnswer);
+        console.log('Interim answer created and set as local description');
+
+        // Continue ICE candidate gathering and finalization in the onicecandidate event
       }
 
-      if (!isSender) {
-        monitorBitrate('inbound-rtp');
-      } else {
-        monitorBitrate('outbound-rtp');
-      }
+      monitorBitrate(isSender ? 'outbound-rtp' : 'inbound-rtp');
     } catch (error) {
       console.error('Error during WebRTC setup:', error);
     }
-  }, [isSender, useWebcam]);
+  }
 
-  const fetchOfferAndSetRemoteDescription = async () => {
-    try {
-      const offer = await vercelGetKeyValue('offer');
-      if (offer) {
-        console.log('Offer fetched from Vercel:', offer);
-        await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(offer));
-        finalizeWebRTCAnswer();
-      } else {
-        console.log('No offer found in Vercel');
-      }
-    } catch (error) {
-      console.error('Error fetching offer from Vercel:', error);
+  async function setupSender(peerConnection: RTCPeerConnection) {
+    console.log('Setting up video stream for WebRTC...');
+    const videoElement = videoRef.current!;
+    let stream: MediaStream;
+
+    if (useWebcam) {
+      console.log('Using webcam as video source');
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } else {
+      console.log('Using pre-recorded video as video source');
+      stream = (videoElement as any).captureStream();
     }
-  };
 
-  const finalizeWebRTCAnswer = async () => {
+    stream.getTracks().forEach((track: MediaStreamTrack) => {
+      peerConnection.addTrack(track, stream);
+    });
+
+    console.log('Creating initial WebRTC offer...');
+    const offer = await peerConnection.createOffer();
+
+    let modifiedSDP = modifySDPForH264(offer.sdp);
+
+    const modifiedOffer = new RTCSessionDescription({
+      type: offer.type,
+      sdp: modifiedSDP,
+    });
+
+    console.log('Setting local description with modified SDP...');
+    await peerConnection.setLocalDescription(modifiedOffer);
+
+    offerElementRef.current!.value = "Collecting ICE Candidates and Generating Offer... Please Wait (30+ seconds)...";
+  }
+
+  async function finalizeAndSaveOffer() {
     try {
-      console.log('Creating WebRTC answer...');
-      const answer = await peerConnectionRef.current!.createAnswer();
-      await peerConnectionRef.current!.setLocalDescription(answer);
+      console.log('Finalizing and saving offer to Vercel...');
+      const localDescription = peerConnectionRef.current!.localDescription;
+      await vercelSetKeyValue('offer', localDescription);
+      console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
 
-      console.log('Uploading answer to Vercel KeyValue...');
-      await vercelSetKeyValue('answer', peerConnectionRef.current!.localDescription);
-
-      console.log('WebRTC answer created and uploaded:', JSON.stringify(answer));
+      await waitForAnswerFromVercel();
     } catch (error) {
-      console.error('Error finalizing WebRTC answer:', error);
+      console.error('Error finalizing and saving offer:', error);
     }
-  };
+  }
 
-  const startSender = async () => {
+  async function finalizeAndSaveAnswer() {
+    try {
+      console.log('Finalizing and saving answer to Vercel...');
+      const localDescription = peerConnectionRef.current!.localDescription;
+      await vercelSetKeyValue('answer', localDescription);
+      console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
+    } catch (error) {
+      console.error('Error finalizing and saving answer:', error);
+    }
+  }
+
+  function modifySDPForH264(sdp: string): string {
+    console.log('Modifying SDP for H.264 prioritization...');
+    let modifiedSDP = sdp.replace(
+      /m=video (\d+) UDP\/TLS\/RTP\/SAVPF 96 97 102/g,
+      'm=video $1 UDP/TLS/RTP/SAVPF 102 97 96'
+    );
+    modifiedSDP = modifiedSDP.replace(
+      /a=mid:1\r\n/g,
+      'a=mid:1\r\nb=AS:5000\r\n'
+    );
+    modifiedSDP = modifiedSDP.replace(
+      /a=rtpmap:102 H264\/90000\r\n/g,
+      'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
+    );
+    return modifiedSDP;
+  }
+
+  async function waitForAnswerFromVercel() {
+    const answer = await waitForKeyValueFromVercel('answer');
+    console.log('Final answer received from Vercel:', answer);
+    await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(answer));
+    console.log('Answer set on peer connection');
+  }
+
+  async function startSender() {
     try {
       console.log('Start Sender clicked');
       setIsSender(true);
@@ -245,9 +244,9 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error starting Sender:', error);
     }
-  };
+  }
 
-  const startWebcamSender = async () => {
+  async function startWebcamSender() {
     try {
       console.log('Start Webcam Sender clicked');
       setIsSender(true);
@@ -256,14 +255,18 @@ export default function HomePage() {
       offerContainerRef.current!.classList.remove('hidden');
       answerFromPeerContainerRef.current!.classList.remove('hidden');
 
+      console.log('Removing old offer/answer from Vercel KeyValue...');
+      await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
+      await vercelSetKeyValue('offer', "");  // Remove any old offer by setting it to an empty string
+
       console.log('Setting up webcam...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Webcam Sender:', error);
     }
-  };
+  }
 
-  const startReceiver = async () => {
+  async function startReceiver() {
     try {
       console.log('Start Receiver clicked');
       setIsSender(false);
@@ -276,9 +279,9 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error starting Receiver:', error);
     }
-  };
+  }
 
-  const setupVideo = async () => {
+  async function setupVideo() {
     try {
       const videoElement = videoRef.current!;
       const videoSource = "sintel_trailer-1080p.mp4";
@@ -298,9 +301,9 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error setting up video:', error);
     }
-  };
+  }
 
-  const monitorBitrate = (type: string) => {
+  function monitorBitrate(type: string) {
     try {
       setInterval(() => {
         peerConnectionRef.current!.getStats().then((stats) => {
@@ -321,14 +324,14 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error monitoring bitrate:', error);
     }
-  };
+  }
 
   useEffect(() => {
     if (shouldSetupWebRTC) {
       setupWebRTC().catch((error) => console.error('Error setting up WebRTC:', error));
       setShouldSetupWebRTC(false); // Reset the trigger
     }
-  }, [shouldSetupWebRTC, setupWebRTC]);
+  }, [shouldSetupWebRTC]);
 
   return (
     <div>
