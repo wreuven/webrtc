@@ -329,6 +329,8 @@ export default function HomePage() {
               const bytes = report.bytesSent || report.bytesReceived;
               const bitrate = ((bytes - lastBytesRef.current) * 8) / 1000; // kbps
               console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
+              // print Send and Received bytes
+              console.log(`Bytes Sent=${report.bytesSent} Recvd=${report.bytesReceived}`);
               bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
               lastBytesRef.current = bytes;
             }
