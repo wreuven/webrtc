@@ -26,6 +26,7 @@ export default function HomePage() {
   async function vercelSetKeyValue(key: string, data: any): Promise<void> {
     try {
       const serializedData = JSON.stringify(data);
+      console.log(`Uploading key-value: ${key} with data: ${serializedData}`);
       const response = await fetch('/api/set-key-val', {
         method: 'POST',
         headers: {
@@ -102,6 +103,18 @@ export default function HomePage() {
         } else {
           console.log('ICE candidate:', event.candidate);
         }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        console.log('ICE connection state changed:', peerConnection.iceConnectionState);
+      };
+
+      peerConnection.onsignalingstatechange = () => {
+        console.log('Signaling state changed:', peerConnection.signalingState);
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        console.log('Connection state changed:', peerConnection.connectionState);
       };
 
       peerConnection.ontrack = (event) => {
