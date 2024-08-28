@@ -95,7 +95,7 @@ export default function HomePage() {
         if (!event.candidate) { // null candidate indicates that ICE gathering is complete
           console.log('ICE gathering complete');
 
-          if (isSender) {
+          if (!isSender) {
             finalizeAndSaveOffer();
           } else {
             finalizeAndSaveAnswer();
@@ -134,11 +134,11 @@ export default function HomePage() {
 
       console.log('isSender during WebRTC setup:', isSender);
 
-      if (isSender) {
-        await setupSender(peerConnection);
+      if (!isSender) {
+        await setupReceiver(peerConnection);
       } else {
         console.log('Waiting for offer from Vercel...');
-        offerFromPeerElementRef.current!.value = "Waiting for offer from sender";
+        offerFromPeerElementRef.current!.value = "Waiting for offer from receiver";
         const offer = await waitForKeyValueFromVercel('offer');
         offerFromPeerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
@@ -157,13 +157,13 @@ export default function HomePage() {
         // Continue ICE candidate gathering and finalization in the onicecandidate event
       }
 
-      monitorBitrate(isSender ? 'outbound-rtp' : 'inbound-rtp');
+      monitorBitrate(isSender ? 'inbound-rtp' : 'outbound-rtp');
     } catch (error) {
       console.error('Error during WebRTC setup:', error);
     }
   }
 
-  async function setupSender(peerConnection: RTCPeerConnection) {
+  async function setupReceiver(peerConnection: RTCPeerConnection) {
     console.log('Setting up video stream for WebRTC...');
     const videoElement = videoRef.current!;
     let stream: MediaStream;
@@ -209,7 +209,7 @@ export default function HomePage() {
       await vercelSetKeyValue('offer', localDescription);
       console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
 
-      answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
+      answerFromPeerElementRef.current!.value = "Waiting for answer from sender";
       await waitForAnswerFromVercel();
     } catch (error) {
       console.error('Error finalizing and saving offer:', error);
@@ -262,16 +262,14 @@ export default function HomePage() {
       setIsSender(true);
       setUseWebcam(false);
       roleTitleRef.current!.textContent = 'Running as Sender';
-      offerContainerRef.current!.classList.remove('hidden');
-      answerFromPeerContainerRef.current!.classList.remove('hidden');
+      offerFromPeerContainerRef.current!.classList.remove('hidden');
+      answerContainerRef.current!.classList.remove('hidden');
 
       console.log('Removing old offer/answer from Vercel KeyValue...');
       await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
       await vercelSetKeyValue('offer', "");  // Remove any old offer by setting it to an empty string
 
-      console.log('Setting up video...');
-      await setupVideo();
-      console.log('Video setup complete. Triggering WebRTC setup...');
+      console.log('Setting up WebRTC...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Sender:', error);
@@ -284,14 +282,14 @@ export default function HomePage() {
       setIsSender(true);
       setUseWebcam(true);
       roleTitleRef.current!.textContent = 'Running as Webcam Sender';
-      offerContainerRef.current!.classList.remove('hidden');
-      answerFromPeerContainerRef.current!.classList.remove('hidden');
+      offerFromPeerContainerRef.current!.classList.remove('hidden');
+      answerContainerRef.current!.classList.remove('hidden');
 
       console.log('Removing old offer/answer from Vercel KeyValue...');
       await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
       await vercelSetKeyValue('offer', "");  // Remove any old offer by setting it to an empty string
 
-      console.log('Setting up webcam...');
+      console.log('Setting up WebRTC...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Webcam Sender:', error);
@@ -303,10 +301,12 @@ export default function HomePage() {
       console.log('Start Receiver clicked');
       setIsSender(false);
       roleTitleRef.current!.textContent = 'Running as Receiver';
-      offerFromPeerContainerRef.current!.classList.remove('hidden');
-      answerContainerRef.current!.classList.remove('hidden');
+      offerContainerRef.current!.classList.remove('hidden');
+      answerFromPeerContainerRef.current!.classList.remove('hidden');
 
-      console.log('Setting up WebRTC as Receiver...');
+      console.log('Setting up video...');
+      await setupVideo();
+      console.log('Video setup complete. Triggering WebRTC setup...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Receiver:', error);
@@ -391,10 +391,10 @@ export default function HomePage() {
       </div>
   
       <div ref={offerFromPeerContainerRef} className="mb-5 hidden">
-        <label className="block text-sm font-medium text-gray-700">Offer from Sender</label>
+        <label className="block text-sm font-medium text-gray-700">Offer from Receiver</label>
         <textarea
           ref={offerFromPeerElementRef}
-          placeholder="Waiting for offer from sender"
+          placeholder="Waiting for offer from receiver"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
@@ -404,17 +404,17 @@ export default function HomePage() {
         <label className="block text-sm font-medium text-gray-700">Answer</label>
         <textarea
           ref={answerElementRef}
-          placeholder="Answer (after Offer from Sender)"
+          placeholder="Answer (after Offer from Receiver)"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
   
       <div ref={answerFromPeerContainerRef} className="mb-5 hidden">
-        <label className="block text-sm font-medium text-gray-700">Answer from Receiver</label>
+        <label className="block text-sm font-medium text-gray-700">Answer from Sender</label>
         <textarea
           ref={answerFromPeerElementRef}
-          placeholder="Waiting for answer from receiver"
+          placeholder="Waiting for answer from sender"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
