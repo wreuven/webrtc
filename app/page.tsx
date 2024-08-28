@@ -82,6 +82,37 @@ export default function HomePage() {
     return value;
   }
 
+  
+  async function finalizeAndSaveAnswer() {
+    try {
+      console.log('Finalizing and saving answer to Vercel...');
+      const localDescription = peerConnectionRef.current!.localDescription;
+
+      answerElementRef.current!.value = JSON.stringify(localDescription);
+      await vercelSetKeyValue('answer', localDescription);
+      console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
+    } catch (error) {
+      console.error('Error finalizing and saving answer:', error);
+    }
+  }
+
+  async function finalizeAndSaveOffer() {
+  try {
+    console.log('Finalizing and saving offer to Vercel...');
+    const localDescription = peerConnectionRef.current!.localDescription;
+
+    // Display the offer in the appropriate text box
+    offerElementRef.current!.value = JSON.stringify(localDescription);
+
+    await vercelSetKeyValue('offer', localDescription);
+    console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
+
+    answerFromPeerElementRef.current!.value = "Waiting for answer from sender";
+  } catch (error) {
+    console.error('Error finalizing and saving offer:', error);
+  }
+}
+
   async function setupWebRTC() {
     try {
       console.log('Creating RTCPeerConnection...');
@@ -167,19 +198,6 @@ export default function HomePage() {
     offerElementRef.current!.value = JSON.stringify(offer);
     await vercelSetKeyValue('offer', offer);
     console.log('Offer created and saved to Vercel');
-  }
-
-  async function finalizeAndSaveAnswer() {
-    try {
-      console.log('Finalizing and saving answer to Vercel...');
-      const localDescription = peerConnectionRef.current!.localDescription;
-
-      answerElementRef.current!.value = JSON.stringify(localDescription);
-      await vercelSetKeyValue('answer', localDescription);
-      console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
-    } catch (error) {
-      console.error('Error finalizing and saving answer:', error);
-    }
   }
 
   function modifySDPForH264(sdp: string): string {
