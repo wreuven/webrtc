@@ -26,7 +26,7 @@ export default function HomePage() {
   async function vercelSetKeyValue(key: string, data: any): Promise<void> {
     try {
       const serializedData = JSON.stringify(data);
-      console.log(Uploading key-value: ${key} with data: ${serializedData});
+      console.log(`Uploading key-value: ${key} with data: ${serializedData}`);
       const response = await fetch('/api/set-key-val', {
         method: 'POST',
         headers: {
@@ -38,34 +38,34 @@ export default function HomePage() {
       if (!response.ok) {
         throw new Error('Failed to upload key-value to Vercel');
       }
-      console.log(KeyValue "${key}" uploaded successfully.);
+      console.log(`KeyValue "${key}" uploaded successfully.`);
     } catch (error) {
-      console.error(Failed to upload key-value "${key}":, (error as Error).message);
+      console.error(`Failed to upload key-value "${key}":`, (error as Error).message);
     }
   }
 
   async function vercelGetKeyValue(key: string): Promise<any> {
     try {
-      console.log(Fetching key-value: ${key});
-      const response = await fetch(/api/get-key-val?key=${key});
+      console.log(`Fetching key-value: ${key}`);
+      const response = await fetch(`/api/get-key-val?key=${key}`);
 
       if (!response.ok) {
-        console.error(Server responded with status: ${response.status});
-        throw new Error(Failed to retrieve key-value "${key}" from Vercel);
+        console.error(`Server responded with status: ${response.status}`);
+        throw new Error(`Failed to retrieve key-value "${key}" from Vercel`);
       }
 
       const data = await response.json();
-      console.log(KeyValue data fetched for ${key}:, data);
+      console.log(`KeyValue data fetched for ${key}:`, data);
 
       const value = data.value;
       if (!value) {
-        console.warn(KeyValue "${key}" fetched but is null or undefined);
+        console.warn(`KeyValue "${key}" fetched but is null or undefined`);
         return null;
       }
 
       return value;
     } catch (error) {
-      console.error(Error retrieving key-value "${key}":, (error as Error).message);
+      console.error(`Error retrieving key-value "${key}":`, (error as Error).message);
       throw error;
     }
   }
@@ -75,7 +75,7 @@ export default function HomePage() {
     while (!value || value.sdp === '') {
       value = await vercelGetKeyValue(key);
       if (!value || value.sdp === '') {
-        console.log(No ${key} found, retrying in ${RETRY_SECS} seconds...);
+        console.log(`No ${key} found, retrying in ${RETRY_SECS} seconds...`);
         await new Promise((resolve) => setTimeout(resolve, RETRY_SECS * 1000)); // wait for 10 seconds before retrying
       }
     }
@@ -349,8 +349,8 @@ export default function HomePage() {
             }
           });
           const bitrate = ((bytesTransferred - lastBytesRef.current) * 8) / 1000; // kbps
-          console.log(Bitrate: ${bitrate.toFixed(2)} kbps);
-          bitrateRef.current!.textContent = ${bitrate.toFixed(2)} kbps;
+          console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
+          bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
           lastBytesRef.current = bytesTransferred;
         });
       }, 1000);
