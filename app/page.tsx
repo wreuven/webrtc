@@ -330,7 +330,7 @@ export default function HomePage() {
               report.type === type &&
               (report.bytesSent || report.bytesReceived)
             ) {
-              bytesTransferred += report.bytesSent || bytesReceived;
+              bytesTransferred += report.bytesSent || report.bytesReceived;
             }
           });
           const bitrate = ((bytesTransferred - lastBytesRef.current) * 8) / 1000; // kbps
