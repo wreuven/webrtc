@@ -82,37 +82,6 @@ export default function HomePage() {
     return value;
   }
 
-  
-  async function finalizeAndSaveAnswer() {
-    try {
-      console.log('Finalizing and saving answer to Vercel...');
-      const localDescription = peerConnectionRef.current!.localDescription;
-
-      answerElementRef.current!.value = JSON.stringify(localDescription);
-      await vercelSetKeyValue('answer', localDescription);
-      console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
-    } catch (error) {
-      console.error('Error finalizing and saving answer:', error);
-    }
-  }
-
-  async function finalizeAndSaveOffer() {
-  try {
-    console.log('Finalizing and saving offer to Vercel...');
-    const localDescription = peerConnectionRef.current!.localDescription;
-
-    // Display the offer in the appropriate text box
-    offerElementRef.current!.value = JSON.stringify(localDescription);
-
-    await vercelSetKeyValue('offer', localDescription);
-    console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
-
-    answerFromPeerElementRef.current!.value = "Waiting for answer from sender";
-  } catch (error) {
-    console.error('Error finalizing and saving offer:', error);
-  }
-}
-
   async function setupWebRTC() {
     try {
       console.log('Creating RTCPeerConnection...');
@@ -168,20 +137,24 @@ export default function HomePage() {
       if (!isSender) {
         await setupReceiver(peerConnection);
       } else {
-        console.log('Waiting for offer from Vercel...');
+        console.log('Waiting for offer from Receiver...');
+        offerFromPeerElementRef.current!.value = "Waiting for offer from receiver";
         const offer = await waitForKeyValueFromVercel('offer');
+        offerFromPeerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
+
+        answerElementRef.current!.value = "Generating Answer";
 
         console.log('Setting remote description with received offer...');
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        console.log('Remote description set with received offer');
 
-        console.log('Creating answer...');
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+        console.log('Creating interim WebRTC answer...');
+        const interimAnswer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(interimAnswer);
+        console.log('Interim answer created and set as local description');
 
-        answerElementRef.current!.value = JSON.stringify(answer);
-        await vercelSetKeyValue('answer', answer);
-        console.log('Answer created and saved to Vercel');
+        // Continue ICE candidate gathering and finalization in the onicecandidate event
       }
 
       monitorBitrate(isSender ? 'outbound-rtp' : 'inbound-rtp');
@@ -193,11 +166,51 @@ export default function HomePage() {
   async function setupReceiver(peerConnection: RTCPeerConnection) {
     console.log('Creating initial WebRTC offer...');
     const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
 
-    offerElementRef.current!.value = JSON.stringify(offer);
-    await vercelSetKeyValue('offer', offer);
-    console.log('Offer created and saved to Vercel');
+    let modifiedSDP = modifySDPForH264(offer.sdp!);
+
+    const modifiedOffer = new RTCSessionDescription({
+      type: offer.type,
+      sdp: modifiedSDP,
+    });
+
+    console.log('Setting local description with modified SDP...');
+    await peerConnection.setLocalDescription(modifiedOffer);
+
+    offerElementRef.current!.value = JSON.stringify(modifiedOffer);
+  }
+
+  async function finalizeAndSaveOffer() {
+    try {
+      console.log('Finalizing and saving offer to Vercel...');
+      const localDescription = peerConnectionRef.current!.localDescription;
+
+      // Display the offer in the appropriate text box
+      offerElementRef.current!.value = JSON.stringify(localDescription);
+
+      await vercelSetKeyValue('offer', localDescription);
+      console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
+
+      answerFromPeerElementRef.current!.value = "Waiting for answer from sender";
+      await waitForAnswerFromVercel();
+    } catch (error) {
+      console.error('Error finalizing and saving offer:', error);
+    }
+  }
+
+  async function finalizeAndSaveAnswer() {
+    try {
+      console.log('Finalizing and saving answer to Vercel...');
+      const localDescription = peerConnectionRef.current!.localDescription;
+
+      // Display the answer in the appropriate text box
+      answerElementRef.current!.value = JSON.stringify(localDescription);
+
+      await vercelSetKeyValue('answer', localDescription);
+      console.log('Final answer saved to Vercel:', JSON.stringify(localDescription));
+    } catch (error) {
+      console.error('Error finalizing and saving answer:', error);
+    }
   }
 
   function modifySDPForH264(sdp: string): string {
@@ -215,6 +228,14 @@ export default function HomePage() {
       'a=rtpmap:102 H264/90000\r\na=fmtp:102 max-fs=8160;max-fr=30;x-google-min-bitrate=3000; x-google-max-bitrate=5000;\r\n'
     );
     return modifiedSDP;
+  }
+
+  async function waitForAnswerFromVercel() {
+    const answer = await waitForKeyValueFromVercel('answer');
+    answerFromPeerElementRef.current!.value = JSON.stringify(answer); // show answer on page   
+    console.log('Final answer received from Vercel:', answer);
+    await peerConnectionRef.current!.setRemoteDescription(new RTCSessionDescription(answer));
+    console.log('Answer set on peer connection');
   }
 
   async function startSender() {
@@ -252,7 +273,7 @@ export default function HomePage() {
       await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
       await vercelSetKeyValue('offer', "");  // Remove any old offer by setting it to an empty string
 
-      console.log('Setting up WebRTC...');
+      console.log('Setting up webcam...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Webcam Sender:', error);
@@ -267,7 +288,7 @@ export default function HomePage() {
       offerContainerRef.current!.classList.remove('hidden');
       answerFromPeerContainerRef.current!.classList.remove('hidden');
 
-      console.log('Setting up WebRTC...');
+      console.log('Setting up WebRTC as Receiver...');
       setShouldSetupWebRTC(true);
     } catch (error) {
       console.error('Error starting Receiver:', error);
