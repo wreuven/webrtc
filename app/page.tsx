@@ -92,7 +92,9 @@ export default function HomePage() {
       peerConnectionRef.current = peerConnection;
 
       peerConnection.onicecandidate = (event) => {
-        if (!event.candidate) { // null candidate indicates that ICE gathering is complete
+        if (event.candidate) {
+          console.log('ICE candidate collected:', event.candidate);
+        } else {
           console.log('ICE gathering complete');
 
           if (!isSender) {
@@ -100,8 +102,6 @@ export default function HomePage() {
           } else {
             finalizeAndSaveAnswer();
           }
-        } else {
-          console.log('ICE candidate:', event.candidate);
         }
       };
 
@@ -178,6 +178,9 @@ export default function HomePage() {
     await peerConnection.setLocalDescription(modifiedOffer);
 
     offerElementRef.current!.value = JSON.stringify(modifiedOffer);
+
+    console.log('Collecting ICE candidates for the offer...');
+    // ICE candidate gathering and saving of the final offer happens in the onicecandidate event.
   }
 
   async function finalizeAndSaveOffer() {
@@ -327,7 +330,7 @@ export default function HomePage() {
               report.type === type &&
               (report.bytesSent || report.bytesReceived)
             ) {
-              bytesTransferred += report.bytesSent || report.bytesReceived;
+              bytesTransferred += report.bytesSent || bytesReceived;
             }
           });
           const bitrate = ((bytesTransferred - lastBytesRef.current) * 8) / 1000; // kbps
