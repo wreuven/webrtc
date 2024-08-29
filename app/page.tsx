@@ -1,6 +1,5 @@
 'use client';
 
-
 import { useState, useRef, useEffect } from 'react';
 
 export default function HomePage() {
@@ -27,7 +26,7 @@ export default function HomePage() {
   async function vercelSetKeyValue(key: string, data: any): Promise<void> {
     try {
       const serializedData = JSON.stringify(data);
-      console.log(`Uploading key-value: ${key} with data: ${serializedData}`);
+      console.log(Uploading key-value: ${key} with data: ${serializedData});
       const response = await fetch('/api/set-key-val', {
         method: 'POST',
         headers: {
@@ -39,34 +38,34 @@ export default function HomePage() {
       if (!response.ok) {
         throw new Error('Failed to upload key-value to Vercel');
       }
-      console.log(`KeyValue "${key}" uploaded successfully.`);
+      console.log(KeyValue "${key}" uploaded successfully.);
     } catch (error) {
-      console.error(`Failed to upload key-value "${key}":`, (error as Error).message);
+      console.error(Failed to upload key-value "${key}":, (error as Error).message);
     }
   }
 
   async function vercelGetKeyValue(key: string): Promise<any> {
     try {
-      console.log(`Fetching key-value: ${key}`);
-      const response = await fetch(`/api/get-key-val?key=${key}`);
+      console.log(Fetching key-value: ${key});
+      const response = await fetch(/api/get-key-val?key=${key});
 
       if (!response.ok) {
-        console.error(`Server responded with status: ${response.status}`);
-        throw new Error(`Failed to retrieve key-value "${key}" from Vercel`);
+        console.error(Server responded with status: ${response.status});
+        throw new Error(Failed to retrieve key-value "${key}" from Vercel);
       }
 
       const data = await response.json();
-      console.log(`KeyValue data fetched for ${key}:`, data);
+      console.log(KeyValue data fetched for ${key}:, data);
 
       const value = data.value;
       if (!value) {
-        console.warn(`KeyValue "${key}" fetched but is null or undefined`);
+        console.warn(KeyValue "${key}" fetched but is null or undefined);
         return null;
       }
 
       return value;
     } catch (error) {
-      console.error(`Error retrieving key-value "${key}":`, (error as Error).message);
+      console.error(Error retrieving key-value "${key}":, (error as Error).message);
       throw error;
     }
   }
@@ -76,7 +75,7 @@ export default function HomePage() {
     while (!value || value.sdp === '') {
       value = await vercelGetKeyValue(key);
       if (!value || value.sdp === '') {
-        console.log(`No ${key} found, retrying in ${RETRY_SECS} seconds...`);
+        console.log(No ${key} found, retrying in ${RETRY_SECS} seconds...);
         await new Promise((resolve) => setTimeout(resolve, RETRY_SECS * 1000)); // wait for 10 seconds before retrying
       }
     }
@@ -93,16 +92,16 @@ export default function HomePage() {
       peerConnectionRef.current = peerConnection;
 
       peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log('ICE candidate collected:', event.candidate);
-        } else {
+        if (!event.candidate) { // null candidate indicates that ICE gathering is complete
           console.log('ICE gathering complete');
 
-          if (!isSender) {
+          if (isSender) {
             finalizeAndSaveOffer();
           } else {
             finalizeAndSaveAnswer();
           }
+        } else {
+          console.log('ICE candidate:', event.candidate);
         }
       };
 
@@ -135,11 +134,11 @@ export default function HomePage() {
 
       console.log('isSender during WebRTC setup:', isSender);
 
-      if (!isSender) {
-        await setupReceiver(peerConnection);
+      if (isSender) {
+        await setupSender(peerConnection);
       } else {
-        console.log('Waiting for offer from Receiver...');
-        offerFromPeerElementRef.current!.value = "Waiting for offer from receiver";
+        console.log('Waiting for offer from Vercel...');
+        offerFromPeerElementRef.current!.value = "Waiting for offer from sender";
         const offer = await waitForKeyValueFromVercel('offer');
         offerFromPeerElementRef.current!.value = JSON.stringify(offer); // show offer on page
         console.log('Offer received:', offer);
@@ -164,7 +163,25 @@ export default function HomePage() {
     }
   }
 
-  async function setupReceiver(peerConnection: RTCPeerConnection) {
+  async function setupSender(peerConnection: RTCPeerConnection) {
+    console.log('Setting up video stream for WebRTC...');
+    const videoElement = videoRef.current!;
+    let stream: MediaStream;
+
+    if (useWebcam) {
+      console.log('Using webcam as video source');
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } else {
+      console.log('Using pre-recorded video as video source');
+      stream = (videoElement as any).captureStream();
+    }
+
+    stream.getTracks().forEach((track: MediaStreamTrack) => {
+      peerConnection.addTrack(track, stream);
+    });
+
+    offerElementRef.current!.value = "Generating Offer";
+
     console.log('Creating initial WebRTC offer...');
     const offer = await peerConnection.createOffer();
 
@@ -179,9 +196,6 @@ export default function HomePage() {
     await peerConnection.setLocalDescription(modifiedOffer);
 
     offerElementRef.current!.value = JSON.stringify(modifiedOffer);
-
-    console.log('Collecting ICE candidates for the offer...');
-    // ICE candidate gathering and saving of the final offer happens in the onicecandidate event.
   }
 
   async function finalizeAndSaveOffer() {
@@ -195,7 +209,7 @@ export default function HomePage() {
       await vercelSetKeyValue('offer', localDescription);
       console.log('Offer saved to Vercel:', JSON.stringify(localDescription));
 
-      answerFromPeerElementRef.current!.value = "Waiting for answer from sender";
+      answerFromPeerElementRef.current!.value = "Waiting for answer from receiver";
       await waitForAnswerFromVercel();
     } catch (error) {
       console.error('Error finalizing and saving offer:', error);
@@ -248,8 +262,8 @@ export default function HomePage() {
       setIsSender(true);
       setUseWebcam(false);
       roleTitleRef.current!.textContent = 'Running as Sender';
-      offerFromPeerContainerRef.current!.classList.remove('hidden');
-      answerContainerRef.current!.classList.remove('hidden');
+      offerContainerRef.current!.classList.remove('hidden');
+      answerFromPeerContainerRef.current!.classList.remove('hidden');
 
       console.log('Removing old offer/answer from Vercel KeyValue...');
       await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
@@ -270,8 +284,8 @@ export default function HomePage() {
       setIsSender(true);
       setUseWebcam(true);
       roleTitleRef.current!.textContent = 'Running as Webcam Sender';
-      offerFromPeerContainerRef.current!.classList.remove('hidden');
-      answerContainerRef.current!.classList.remove('hidden');
+      offerContainerRef.current!.classList.remove('hidden');
+      answerFromPeerContainerRef.current!.classList.remove('hidden');
 
       console.log('Removing old offer/answer from Vercel KeyValue...');
       await vercelSetKeyValue('answer', ""); // Remove any old answer by setting it to an empty string
@@ -289,8 +303,8 @@ export default function HomePage() {
       console.log('Start Receiver clicked');
       setIsSender(false);
       roleTitleRef.current!.textContent = 'Running as Receiver';
-      offerContainerRef.current!.classList.remove('hidden');
-      answerFromPeerContainerRef.current!.classList.remove('hidden');
+      offerFromPeerContainerRef.current!.classList.remove('hidden');
+      answerContainerRef.current!.classList.remove('hidden');
 
       console.log('Setting up WebRTC as Receiver...');
       setShouldSetupWebRTC(true);
@@ -335,8 +349,8 @@ export default function HomePage() {
             }
           });
           const bitrate = ((bytesTransferred - lastBytesRef.current) * 8) / 1000; // kbps
-          console.log(`Bitrate: ${bitrate.toFixed(2)} kbps`);
-          bitrateRef.current!.textContent = `${bitrate.toFixed(2)} kbps`;
+          console.log(Bitrate: ${bitrate.toFixed(2)} kbps);
+          bitrateRef.current!.textContent = ${bitrate.toFixed(2)} kbps;
           lastBytesRef.current = bytesTransferred;
         });
       }, 1000);
@@ -377,10 +391,10 @@ export default function HomePage() {
       </div>
   
       <div ref={offerFromPeerContainerRef} className="mb-5 hidden">
-        <label className="block text-sm font-medium text-gray-700">Offer from Receiver</label>
+        <label className="block text-sm font-medium text-gray-700">Offer from Sender</label>
         <textarea
           ref={offerFromPeerElementRef}
-          placeholder="Waiting for offer from receiver"
+          placeholder="Waiting for offer from sender"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
@@ -390,17 +404,17 @@ export default function HomePage() {
         <label className="block text-sm font-medium text-gray-700">Answer</label>
         <textarea
           ref={answerElementRef}
-          placeholder="Answer (after Offer from Receiver)"
+          placeholder="Answer (after Offer from Sender)"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
       </div>
   
       <div ref={answerFromPeerContainerRef} className="mb-5 hidden">
-        <label className="block text-sm font-medium text-gray-700">Answer from Sender</label>
+        <label className="block text-sm font-medium text-gray-700">Answer from Receiver</label>
         <textarea
           ref={answerFromPeerElementRef}
-          placeholder="Waiting for answer from sender"
+          placeholder="Waiting for answer from receiver"
           readOnly
           className="w-full h-24 p-2 border border-gray-300 rounded"
         ></textarea>
